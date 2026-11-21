@@ -21,12 +21,28 @@ const norm = s => String(s).toLowerCase().trim().replace(/[.,!?;:"“”()]/g,''
 
 let Q = [], i = 0, sc = 0, st = 0, ok = 0, tl = 25, tm = null, name = '', wrong = [], done = false;
 
+// --- BẮT ĐẦU CODE CHỐNG GIAN LẬN ---
+let isCheating = false;
+document.addEventListener("visibilitychange", () => {
+  // Chỉ chạy khi đang làm bài
+  if (!window.sessionId) return;
+  
+  if (document.visibilityState === "hidden") {
+    isCheating = true; // Rời tab -> Gian lận
+  } else {
+    isCheating = false; // Quay lại tab
+  }
+  updateProgress(); // Cập nhật ngay lên Firebase
+});
+// --- KẾT THÚC CODE CHỐNG GIAN LẬN ---
+
 async function updateProgress() {
   if (!window.sessionId) return;
   try {
     await setDoc(doc(db, "active_sessions", window.sessionId), {
       studentName: name, currentQuestionIndex: i + 1, totalQuestions: Q.length,
       score: sc, lastUpdate: new Date(), status: "playing"
+      cheating: isCheating 
     }, { merge: true });
   } catch (e) { console.error(e); }
 }
