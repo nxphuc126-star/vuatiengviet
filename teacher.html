@@ -59,7 +59,7 @@
   <!-- PHẦN UPLOAD BTVN -->
   <div class="upload-section">
     <h3>📁 Giao Bài Tập Về Nhà (BTVN)</h3>
-    <p style="font-size:0.9rem; color:#7a6a58">Tải lên file Word, PDF hoặc Ảnh đề bài. File sẽ hiện cho học sinh tải về.</p>
+    <p style="font-size:0.9rem; color:#7a6a58">Tải lên file Word hoặc Ảnh đề bài (Không hỗ trợ PDF). File sẽ hiện cho học sinh tải về.</p>
     <input type="file" id="fileUpload" style="margin-bottom:10px; padding:10px; border:1px solid #ccc; border-radius:8px;">
     <button class="b" style="background:#c2410c; color:#fff; border:none; padding:10px 20px; border-radius:8px; cursor:pointer; font-weight:bold;" onclick="uploadHomework()">Tải Lên BTVN</button>
     <p id="upload-status" class="file-status">✅ Đã tải lên thành công! Học sinh có thể tải về ngay bây giờ.</p>
@@ -81,7 +81,6 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
 import { getFirestore, collection, onSnapshot, query, orderBy, limit, doc, deleteDoc, updateDoc, setDoc, getDoc }
   from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
-import { getStorage, ref, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-storage.js";
   
 import { REAL_HASH_USER, REAL_HASH_PASS } from './auth.js';
 
@@ -99,7 +98,6 @@ const firebaseConfig = {
 
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
-const storage = getStorage(app);
 const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 
 window.checkLogin = async function() {
@@ -129,33 +127,52 @@ document.getElementById('password').addEventListener('keypress', function(e) {
   if (e.key === 'Enter') window.checkLogin();
 });
 
-// Hàm Upload File BTVN
+// Hàm Upload File BTVN lên Cloudinary (Đã chặn PDF)
 window.uploadHomework = async function() {
   const fileInput = document.getElementById('fileUpload');
   const file = fileInput.files[0];
+  
   if (!file) {
     alert("Vui lòng chọn một file trước khi tải lên!");
     return;
   }
 
+  // 🚫 CHẶN FILE PDF
+  if (file.name.toLowerCase().endsWith('.pdf') || file.type === 'application/pdf') {
+    alert("⚠️ Cô giáo nên upload file Word (.docx) hoặc Ảnh (.jpg, .png) thay vì PDF để học sinh có thể tải về bình thường nhé!");
+    fileInput.value = ''; 
+    return; 
+  }
+
   try {
     document.getElementById('upload-status').style.display = 'block';
-    document.getElementById('upload-status').textContent = "⏳ Đang tải lên...";
+    document.getElementById('upload-status').textContent = "⏳ Đang tải lên Cloudinary...";
     
-    // Tạo tham chiếu lưu file trên Firebase Storage
-    const storageRef = ref(storage, 'homework/' + file.name);
-    await uploadBytes(storageRef, file);
-    const downloadURL = await getDownloadURL(storageRef);
+    const CLOUDINARY_CLOUD_NAME = "YOUR_CLOUD_NAME"; // ⚠️ ĐIỀN CLOUD NAME CỦA BẠN
+    const CLOUDINARY_UPLOAD_PRESET = "btvn_files"; // Preset bạn vừa tạo
+
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('upload_preset', CLOUDINARY_UPLOAD_PRESET);
+
+    // Gửi file lên Cloudinary (dùng auto/upload)
+    const res = await fetch(`https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/auto/upload`, {
+      method: 'POST',
+      body: formData
+    });
+    
+    const data = await res.json();
+    if (!data.secure_url) throw new Error("Upload thất bại");
 
     // Lưu link file vào Firestore để học sinh lấy
     await setDoc(doc(db, "settings", "homework"), {
       fileName: file.name,
-      url: downloadURL,
+      url: data.secure_url,
       timestamp: new Date()
     });
 
     document.getElementById('upload-status').textContent = "✅ Đã tải lên thành công! Học sinh có thể tải về ngay bây giờ.";
-    fileInput.value = ''; // Reset ô chọn file
+    fileInput.value = ''; 
   } catch (e) {
     alert("Lỗi upload file: " + e.message);
     document.getElementById('upload-status').style.display = 'none';
