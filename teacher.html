@@ -37,6 +37,11 @@
   .upload-section { background: #fff; border: 2px dashed #c2410c; border-radius: 16px; padding: 20px; text-align: center; max-width: 1100px; margin: 0 auto 20px auto; }
   .upload-section h3 { margin-top: 0; color: #c2410c; }
   .file-status { margin-top: 10px; color: #15803d; font-weight: bold; display: none; }
+
+  /* Nút Xóa trong BXH */
+  .btn-del { background: #ef4444; color: white; border: none; border-radius: 4px; padding: 2px 6px; font-size: 0.75rem; cursor: pointer; margin-left: 8px; }
+  /* Nút Cảnh báo trong Giám sát */
+  .btn-warn { background: #eab308; color: white; border: none; border-radius: 6px; padding: 4px 8px; font-size: 0.8rem; cursor: pointer; margin-right: 4px; }
 </style>
 </head>
 <body>
@@ -56,10 +61,9 @@
   <h1>👩‍🏫 Quản Lý Lớp Học</h1>
   <p class="subtitle">Cập nhật real-time · Theo dõi tiến độ và giao bài tập</p>
 
-  <!-- PHẦN UPLOAD BTVN -->
   <div class="upload-section">
     <h3>📁 Giao Bài Tập Về Nhà (BTVN)</h3>
-    <p style="font-size:0.9rem; color:#7a6a58">Tải lên file Word hoặc Ảnh đề bài (Không hỗ trợ PDF). File sẽ hiện cho học sinh tải về.</p>
+    <p style="font-size:0.9rem; color:#7a6a58">Tải lên file Word hoặc Ảnh đề bài (Không hỗ trợ PDF).</p>
     <input type="file" id="fileUpload" style="margin-bottom:10px; padding:10px; border:1px solid #ccc; border-radius:8px;">
     <button class="b" style="background:#c2410c; color:#fff; border:none; padding:10px 20px; border-radius:8px; cursor:pointer; font-weight:bold;" onclick="uploadHomework()">Tải Lên BTVN</button>
     <p id="upload-status" class="file-status">✅ Đã tải lên thành công! Học sinh có thể tải về ngay bây giờ.</p>
@@ -79,20 +83,18 @@
 
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-import { getFirestore, collection, onSnapshot, query, orderBy, limit, doc, deleteDoc, updateDoc, setDoc, getDoc }
+import { getFirestore, collection, onSnapshot, query, orderBy, limit, doc, deleteDoc, updateDoc, setDoc, getDoc, getDocs, where }
   from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
   
 import { REAL_HASH_USER, REAL_HASH_PASS } from './auth.js';
 
-const _c1 = "AIzaSyAs"; const _c2 = "T89zdpQwALQ"; const _c3 = "0kmYta7mtwCXaj_yJc8Q";
-const _p1 = "vuatiengviet"; const _p2 = "-7a1cb";
-
+// ⚠️ DÙNG CONFIG THẬT CỦA BẠN
 const firebaseConfig = {
-  apiKey: _c1 + _c2 + _c3,
-  authDomain: _p1 + _p2 + ".firebaseapp.com",
-  projectId: _p1 + _p2,
-  storageBucket: _p1 + _p2 + ".firebasestorage.app",
-  messagingSenderId: "563" + "648012328",
+  apiKey: "AIzaSyAsT89zdpQwALQ0kmYta7mtwCXaj_yJc8Q",
+  authDomain: "vuatiengviet-7a1cb.firebaseapp.com",
+  projectId: "vuatiengviet-7a1cb",
+  storageBucket: "vuatiengviet-7a1cb.firebasestorage.app",
+  messagingSenderId: "563648012328",
   appId: "1:563648012328:web:9b6bdc3e45179dd90ed51d"
 };
 
@@ -127,51 +129,40 @@ document.getElementById('password').addEventListener('keypress', function(e) {
   if (e.key === 'Enter') window.checkLogin();
 });
 
-// Hàm Upload File BTVN lên Cloudinary (Đã chặn PDF)
+// UPLOAD FILE QUA CLOUDINARY
 window.uploadHomework = async function() {
   const fileInput = document.getElementById('fileUpload');
   const file = fileInput.files[0];
   
-  if (!file) {
-    alert("Vui lòng chọn một file trước khi tải lên!");
-    return;
-  }
-
-  // 🚫 CHẶN FILE PDF
+  if (!file) { alert("Vui lòng chọn một file!"); return; }
   if (file.name.toLowerCase().endsWith('.pdf') || file.type === 'application/pdf') {
-    alert("⚠️ Cô giáo nên upload file Word (.docx) hoặc Ảnh (.jpg, .png) thay vì PDF để học sinh có thể tải về bình thường nhé!");
-    fileInput.value = ''; 
-    return; 
+    alert("⚠️ Cô giáo nên upload file Word hoặc Ảnh thay vì PDF nhé!");
+    fileInput.value = ''; return; 
   }
 
   try {
     document.getElementById('upload-status').style.display = 'block';
     document.getElementById('upload-status').textContent = "⏳ Đang tải lên Cloudinary...";
     
-    const CLOUDINARY_CLOUD_NAME = "w7xmgzco"; // ⚠️ ĐIỀN CLOUD NAME CỦA BẠN
-    const CLOUDINARY_UPLOAD_PRESET = "btvn_files"; // Preset bạn vừa tạo
+    const CLOUDINARY_CLOUD_NAME = "w7xmzgco"; // ⚠️ THAY BẰNG CLOUD NAME CỦA BẠN
+    const CLOUDINARY_UPLOAD_PRESET = "btvn_files"; // Tên preset bạn đã tạo
 
     const formData = new FormData();
     formData.append('file', file);
     formData.append('upload_preset', CLOUDINARY_UPLOAD_PRESET);
 
-    // Gửi file lên Cloudinary (dùng auto/upload)
     const res = await fetch(`https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/auto/upload`, {
-      method: 'POST',
-      body: formData
+      method: 'POST', body: formData
     });
     
     const data = await res.json();
     if (!data.secure_url) throw new Error("Upload thất bại");
 
-    // Lưu link file vào Firestore để học sinh lấy
     await setDoc(doc(db, "settings", "homework"), {
-      fileName: file.name,
-      url: data.secure_url,
-      timestamp: new Date()
+      fileName: file.name, url: data.secure_url, timestamp: new Date()
     });
 
-    document.getElementById('upload-status').textContent = "✅ Đã tải lên thành công! Học sinh có thể tải về ngay bây giờ.";
+    document.getElementById('upload-status').textContent = "✅ Đã tải lên thành công!";
     fileInput.value = ''; 
   } catch (e) {
     alert("Lỗi upload file: " + e.message);
@@ -179,17 +170,44 @@ window.uploadHomework = async function() {
   }
 };
 
+// NÚT ĐUỔI HỌC SINH
 window.kickStudent = async function(sessionId) {
   if (confirm("Bạn có chắc chắn muốn đuổi học sinh này ra khỏi phòng thi?")) {
+    try { await updateDoc(doc(db, "active_sessions", sessionId), { kicked: true }); } 
+    catch (e) { alert("Lỗi khi đuổi: " + e.message); }
+  }
+};
+
+// NÚT CẢNH BÁO HỌC SINH
+window.warnStudent = async function(sessionId, currentScore) {
+  if (confirm("Cảnh báo và TRỪ NỬA SỐ ĐIỂM của học sinh này?")) {
     try {
-      await updateDoc(doc(db, "active_sessions", sessionId), { kicked: true });
-    } catch (e) {
-      alert("Lỗi khi đuổi học sinh: " + e.message);
-    }
+      const newScore = Math.max(0, Math.floor(currentScore / 2));
+      await updateDoc(doc(db, "active_sessions", sessionId), {
+        warningMessage: `Giáo viên đã cảnh cáo bạn vì vi phạm! Bạn bị trừ nửa số điểm (Còn ${newScore} điểm).`,
+        warningTimestamp: Date.now(),
+        score: newScore // Trừ điểm ngay lập tức
+      });
+    } catch (e) { alert("Lỗi: " + e.message); }
+  }
+};
+
+// NÚT XÓA HỌC SINH KHỎI BXH
+window.deleteFromBXH = async function(studentName) {
+  if (confirm(`Bạn có chắc chắn muốn XÓA ${studentName} khỏi Bảng Xếp Hạng?`)) {
+    try {
+      // Tìm document có tên tương ứng để xóa
+      const q = query(collection(db, "leaderboard"), where("name", "==", studentName));
+      const snap = await getDocs(q);
+      snap.forEach(async (d) => {
+        await deleteDoc(doc(db, "leaderboard", d.id));
+      });
+    } catch (e) { alert("Lỗi khi xóa: " + e.message); }
   }
 };
 
 function startRealtimeData() {
+  // 1. LẮNG NGHE TIẾN ĐỘ
   onSnapshot(collection(db, "active_sessions"), (snap) => {
     const now = new Date();
     const rows = [];
@@ -205,23 +223,21 @@ function startRealtimeData() {
       }
       
       if (v.status === "playing") {
-        const pct = Math.round((v.currentQuestionIndex / v.totalQuestions) * 100);
+        const pct = Math.min(100, Math.round((v.currentQuestionIndex / v.totalQuestions) * 100));
         
         let warningHTML = '';
         let nameColor = 'inherit';
         let rowBg = '';
         
         if (v.cheating === true) {
-          warningHTML = `<div style="color:#b91c1c; font-size:0.8rem; font-weight:bold; margin-top:4px;">⚠️ Cảnh báo: Đã chuyển tab!</div>`;
+          warningHTML = `<div style="color:#b91c1c; font-size:0.8rem; font-weight:bold; margin-top:4px;">⚠️ Đã chuyển tab!</div>`;
           nameColor = '#b91c1c'; 
           rowBg = 'background-color: #ffebee;'; 
-          
           if (v.cheatingImageUrl) {
-            warningHTML += `<div style="margin-top:8px;"><a href="${v.cheatingImageUrl}" target="_blank"><img src="${v.cheatingImageUrl}" style="width:120px; height:90px; border-radius:6px; border:2px solid #b91c1c; object-fit:cover;" title="Bấm xem ảnh lớn"></a></div>`;
+            warningHTML += `<div style="margin-top:8px;"><a href="${v.cheatingImageUrl}" target="_blank"><img src="${v.cheatingImageUrl}" style="width:120px; height:90px; border-radius:6px; border:2px solid #b91c1c; object-fit:cover;"></a></div>`;
           }
         }
 
-        // Tự động tách lớp ra khỏi tên
         const nameParts = v.studentName.split(' (');
         const displayName = nameParts[0];
         const displayClass = nameParts.length > 1 ? nameParts[1].replace(')', '') : '';
@@ -231,7 +247,7 @@ function startRealtimeData() {
           <div class="row" style="${rowBg}">
             <div>
               <div class="nm" style="color:${nameColor}; display:flex; align-items:center;">${esc(displayName)} ${classBadge}</div>
-              <div class="meta">Đang làm câu ${v.currentQuestionIndex}/${v.totalQuestions} · ${v.score} điểm</div>
+              <div class="meta">Câu ${v.currentQuestionIndex}/${v.totalQuestions} · <b>${v.score}</b> điểm</div>
               ${warningHTML}
             </div>
             <div style="display:flex; flex-direction:column; align-items:flex-end; gap:8px;">
@@ -239,15 +255,19 @@ function startRealtimeData() {
                 <div class="progress-text">${pct}%</div>
                 <div class="progress"><i style="width:${pct}%"></i></div>
               </div>
-              <button style="background:#b91c1c; color:#fff; border:none; padding:4px 10px; font-size:0.8rem; border-radius:6px; cursor:pointer;" onclick="window.kickStudent('${d.id}')">Đuổi</button>
+              <div style="display:flex;">
+                <button class="btn-warn" onclick="window.warnStudent('${d.id}', ${v.score})">Cảnh báo</button>
+                <button style="background:#b91c1c; color:#fff; border:none; padding:4px 10px; font-size:0.8rem; border-radius:6px; cursor:pointer;" onclick="window.kickStudent('${d.id}')">Đuổi</button>
+              </div>
             </div>
           </div>
         `);
       }
     });
-    document.getElementById('live-panel').innerHTML = rows.length ? rows.join('') : '<div class="empty">Không có học sinh nào đang làm bài.</div>';
+    document.getElementById('live-panel').innerHTML = rows.length ? rows.join('') : '<div class="empty">Không có ai đang làm bài.</div>';
   });
 
+  // 2. BẢNG XẾP HẠNG
   const lbQuery = query(collection(db, "leaderboard"), orderBy("score", "desc"), limit(10));
   onSnapshot(lbQuery, (snap) => {
     const rows = []; 
@@ -260,10 +280,15 @@ function startRealtimeData() {
       if (rank === 2) badgeColor = "#94a3b8";
       if (rank === 3) badgeColor = "#b45309";
 
+      // Tên trên BXH đã có sẵn dạng "Huy (7A2)"
       rows.push(`
         <div class="row">
-          <div><span class="badge" style="background:${badgeColor}">#${rank}</span> <span class="nm">${esc(v.name)}</span></div>
-          <div class="meta" style="text-align:right"><b>${v.score}</b> điểm<br>Đúng ${v.correct}/${v.total} câu</div>
+          <div style="display:flex; align-items:center;">
+            <span class="badge" style="background:${badgeColor}">#${rank}</span> 
+            <span class="nm">${esc(v.name)}</span>
+            <button class="btn-del" onclick="window.deleteFromBXH('${esc(v.name)}')">Xóa</button>
+          </div>
+          <div class="meta" style="text-align:right"><b>${v.score}</b> điểm<br>Đúng ${v.correct}/${v.total}</div>
         </div>
       `);
     });
