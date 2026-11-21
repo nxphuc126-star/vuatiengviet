@@ -1,5 +1,5 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-import { getFirestore, collection, doc, setDoc, addDoc, onSnapshot, query, orderBy, limit, deleteDoc }
+import { getFirestore, collection, doc, setDoc, addDoc, onSnapshot, query, orderBy, limit, deleteDoc, getDoc }
   from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
 const firebaseConfig = {
@@ -130,13 +130,35 @@ async function saveScore() {
   } catch (e) {}
 }
 
-function home() {
+async function home() {
   clearInterval(tm);
   let lb = [];
+  let hwHtml = '';
+
+  // 1. Kiểm tra xem giáo viên đã up BTVN chưa
+  try {
+    const hwSnap = await getDoc(doc(db, "settings", "homework"));
+    if (hwSnap.exists() && hwSnap.data().url) {
+      const hw = hwSnap.data();
+      hwHtml = `
+        <div style="margin-top:15px; padding:10px; background:#e0f2fe; border:1px solid #bae6fd; border-radius:8px;">
+          <p style="margin:0 0 8px 0; font-weight:bold; color:#0369a1;">📚 Bài tập về nhà: ${esc(hw.fileName)}</p>
+          <a href="${hw.url}" target="_blank" style="display:inline-block; background:#0284c7; color:#fff; padding:8px 16px; border-radius:6px; text-decoration:none; font-weight:bold; font-size:0.9rem;">⬇ Tải File Về Máy</a>
+        </div>`;
+    } else {
+      hwHtml = `
+        <div style="margin-top:15px; padding:10px; background:#fef2f2; border:1px solid #fecaca; border-radius:8px;">
+          <p style="margin:0; color:#b91c1c; font-weight:bold; font-size:0.9rem;">⚠️ Cô giáo chưa đưa bài tập về nhà lên.</p>
+        </div>`;
+    }
+  } catch(e) {}
+
+  // 2. Lắng nghe bảng xếp hạng
   try {
     const q = query(collection(db, "leaderboard"), orderBy("score", "desc"), limit(10));
     onSnapshot(q, (snap) => {
       lb = []; snap.forEach(d => lb.push(d.data()));
+      
       A.innerHTML = `
         <h1>👑 VUA TIẾNG VIỆT</h1><p class="sub">Ngữ văn 7 · Kết nối tri thức · Tập 1</p>
         <div class="c">
@@ -154,9 +176,11 @@ function home() {
 
           <p id="err-msg" style="color:var(--bad); font-weight:bold; display:none; margin-top:10px;">Vui lòng nhập tên và chọn lớp!</p>
 
+          ${hwHtml} <!-- Hiển thị nút tải BTVN ở đây -->
+
           <p style="margin:14px 0 6px">Bộ đề gồm ${QUIZ_DATA.length} câu.</p>
           <button class="b" id="btnFull">▶ Chơi trọn bộ</button>
-          <button class="b g" id="btnTen">⚡ Thử thách 10 câu</button>
+          <button class="b g" id="btnTen" style="background:#fff; color:var(--pri); border:2px solid var(--pri);">⚡ Thử thách 10 câu</button>
         </div>
         <div class="c"><b>🏆 Bảng vàng (Trực tuyến)</b>${lb.length?'<table>'+lb.map((r,k)=>`<tr><td>${k+1}</td><td>${esc(r.name)}</td><td>${r.score} điểm</td><td>${r.correct}/${r.total}</td></tr>`).join('')+'</table>':'<p style="color:var(--mut)">Chưa có ai.</p>'}</div>`;
       
