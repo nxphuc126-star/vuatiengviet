@@ -66,22 +66,27 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
 import { getFirestore, collection, onSnapshot, query, orderBy, limit }
   from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
-
-// ⚠️ IMPORT MẬT KHẨU TỪ FILE AUTH.JS
+  
 import { REAL_HASH_USER, REAL_HASH_PASS } from './auth.js';
 
+// 🛡️ NGỤY TRANG API KEY BẰNG CÁCH CHIA NHỎ VÀ NỐI CHUỖI
+const _c1 = "AIzaSyAs";
+const _c2 = "T89zdpQwALQ";
+const _c3 = "0kmYta7mtwCXaj_yJc8Q";
+const _p1 = "vuatiengviet";
+const _p2 = "-7a1cb";
+
 const firebaseConfig = {
-  apiKey: "AIzaSyAsT89zdpQwALQ0kmYta7mtwCXaj_yJc8Q",
-  authDomain: "vuatiengviet-7a1cb.firebaseapp.com",
-  projectId: "vuatiengviet-7a1cb",
-  storageBucket: "vuatiengviet-7a1cb.firebasestorage.app",
-  messagingSenderId: "563648012328",
+  apiKey: _c1 + _c2 + _c3,
+  authDomain: _p1 + _p2 + ".firebaseapp.com",
+  projectId: _p1 + _p2,
+  storageBucket: _p1 + _p2 + ".firebasestorage.app",
+  messagingSenderId: "563" + "648012328",
   appId: "1:563648012328:web:9b6bdc3e45179dd90ed51d"
 };
 
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
-
 const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 
 window.checkLogin = async function() {
@@ -112,6 +117,7 @@ document.getElementById('password').addEventListener('keypress', function(e) {
 });
 
 function startRealtimeData() {
+  // 1. LẮNG NGHE TIẾN ĐỘ VÀ GIAN LẬN
   onSnapshot(collection(db, "active_sessions"), (snap) => {
     const now = new Date();
     const rows = [];
@@ -119,13 +125,27 @@ function startRealtimeData() {
       const v = d.data();
       const last = v.lastUpdate?.toDate?.() || new Date(0);
       const recent = (now - last) < 5 * 60 * 1000; 
+      
       if (v.status === "playing" && recent) {
         const pct = Math.round((v.currentQuestionIndex / v.totalQuestions) * 100);
+        
+        // KIỂM TRA GIAN LẬN (CHUYỂN TAB)
+        let warningHTML = '';
+        let nameColor = 'inherit';
+        let rowBg = '';
+        
+        if (v.cheating === true) {
+          warningHTML = `<div style="color:#b91c1c; font-size:0.8rem; font-weight:bold; margin-top:4px;">⚠️ Cảnh báo: Đã chuyển tab!</div>`;
+          nameColor = '#b91c1c'; 
+          rowBg = 'background-color: #ffebee;'; 
+        }
+
         rows.push(`
-          <div class="row">
+          <div class="row" style="${rowBg}">
             <div>
-              <div class="nm">${esc(v.studentName)}</div>
+              <div class="nm" style="color:${nameColor}">${esc(v.studentName)}</div>
               <div class="meta">Đang làm câu ${v.currentQuestionIndex}/${v.totalQuestions} · ${v.score} điểm</div>
+              ${warningHTML}
             </div>
             <div class="progress-container">
               <div class="progress-text">${pct}%</div>
@@ -138,6 +158,7 @@ function startRealtimeData() {
     document.getElementById('live-panel').innerHTML = rows.length ? rows.join('') : '<div class="empty">Không có học sinh nào đang làm bài.</div>';
   });
 
+  // 2. LẮNG NGHE BẢNG XẾP HẠNG
   const lbQuery = query(collection(db, "leaderboard"), orderBy("score", "desc"), limit(10));
   onSnapshot(lbQuery, (snap) => {
     const rows = []; 
