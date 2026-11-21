@@ -1,0 +1,2 @@
+export const REAL_HASH_USER = "933a1b904f2de6ab34e0a4df0d8c9b1d01b5d1d80b07f3bf2822f0bf76efd587"; 
+export const REAL_HASH_PASS = "dcdb3b53fd118abca7a2c6c259b81668f68ed38b7a23707d0d52103c0431b7fb";
