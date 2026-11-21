@@ -148,15 +148,15 @@ window.uploadHomework = async function() {
     document.getElementById('upload-status').style.display = 'block';
     document.getElementById('upload-status').textContent = "⏳ Đang tải lên Cloudinary...";
     
-    const CLOUDINARY_CLOUD_NAME = "YOUR_CLOUD_NAME"; // ⚠️ ĐIỀN CLOUD NAME CỦA BẠN
+    const CLOUDINARY_CLOUD_NAME = "w7xmgzco"; // ⚠️ ĐIỀN CLOUD NAME CỦA BẠN
     const CLOUDINARY_UPLOAD_PRESET = "btvn_files"; // Preset bạn vừa tạo
 
     const formData = new FormData();
     formData.append('file', file);
-    formData.append('upload_preset', CLOUDINARY_UPLOAD_PRESET);
+    formData.append('upload_preset', btvn_files);
 
     // Gửi file lên Cloudinary (dùng auto/upload)
-    const res = await fetch(`https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/auto/upload`, {
+    const res = await fetch(`https://api.cloudinary.com/v1_1/${btvn_files}/auto/upload`, {
       method: 'POST',
       body: formData
     });
