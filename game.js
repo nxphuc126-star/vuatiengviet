@@ -19,7 +19,7 @@ const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;
 const norm = s => String(s).toLowerCase().trim().replace(/[.,!?;:"“”()]/g,'');
 
 let Q = [], i = 0, sc = 0, st = 0, ok = 0, tl = 25, tm = null, name = '', wrong = [], done = false;
-let studentClass = ""; // Biến lưu lớp học
+let studentClass = ""; 
 
 // --- CẤU HÌNH CHỤP MÀN HÌNH & GIAN LẬN ---
 let isCheating = false;
@@ -132,10 +132,9 @@ async function saveScore() {
 
 async function home() {
   clearInterval(tm);
-  let lb = [];
   let hwHtml = '';
 
-  // 1. Kiểm tra xem giáo viên đã up BTVN chưa
+  // 1. Kiểm tra BTVN
   try {
     const hwSnap = await getDoc(doc(db, "settings", "homework"));
     if (hwSnap.exists() && hwSnap.data().url) {
@@ -154,40 +153,38 @@ async function home() {
   } catch(e) {}
 
   // 2. Lắng nghe bảng xếp hạng
-  try {
-    const q = query(collection(db, "leaderboard"), orderBy("score", "desc"), limit(10));
-    onSnapshot(q, (snap) => {
-      lb = []; snap.forEach(d => lb.push(d.data()));
-      
-      A.innerHTML = `
-        <h1>👑 VUA TIẾNG VIỆT</h1><p class="sub">Ngữ văn 7 · Kết nối tri thức · Tập 1</p>
-        <div class="c">
-          <label>Tên của bạn</label>
-          <input id="nm" placeholder="Nhập tên..." value="${esc(name)}">
-          
-          <label style="margin-top:12px;">Chọn Lớp</label>
-          <select id="cls" style="width:100%; padding:12px; border-radius:10px; border:2px solid var(--line); background:var(--bg); font-size:1rem; color:var(--ink);">
-            <option value="">-- Chọn lớp của bạn --</option>
-            <option value="7A1" ${studentClass === '7A1' ? 'selected' : ''}>Lớp 7A1</option>
-            <option value="7A2" ${studentClass === '7A2' ? 'selected' : ''}>Lớp 7A2</option>
-            <option value="7A3" ${studentClass === '7A3' ? 'selected' : ''}>Lớp 7A3</option>
-            <option value="7A4" ${studentClass === '7A4' ? 'selected' : ''}>Lớp 7A4</option>
-          </select>
+  const q = query(collection(db, "leaderboard"), orderBy("score", "desc"), limit(10));
+  onSnapshot(q, (snap) => {
+    let lb = []; snap.forEach(d => lb.push(d.data()));
+    
+    A.innerHTML = `
+      <h1>👑 VUA TIẾNG VIỆT</h1><p class="sub">Ngữ văn 7 · Kết nối tri thức · Tập 1</p>
+      <div class="c">
+        <label>Tên của bạn</label>
+        <input id="nm" placeholder="Nhập tên..." value="${esc(name)}">
+        
+        <label style="margin-top:12px;">Chọn Lớp</label>
+        <select id="cls" style="width:100%; padding:12px; border-radius:10px; border:2px solid var(--line); background:var(--bg); font-size:1rem; color:var(--ink);">
+          <option value="">-- Chọn lớp của bạn --</option>
+          <option value="7A1" ${studentClass === '7A1' ? 'selected' : ''}>Lớp 7A1</option>
+          <option value="7A2" ${studentClass === '7A2' ? 'selected' : ''}>Lớp 7A2</option>
+          <option value="7A3" ${studentClass === '7A3' ? 'selected' : ''}>Lớp 7A3</option>
+          <option value="7A4" ${studentClass === '7A4' ? 'selected' : ''}>Lớp 7A4</option>
+        </select>
 
-          <p id="err-msg" style="color:var(--bad); font-weight:bold; display:none; margin-top:10px;">Vui lòng nhập tên và chọn lớp!</p>
+        <p id="err-msg" style="color:var(--bad); font-weight:bold; display:none; margin-top:10px;">Vui lòng nhập tên và chọn lớp!</p>
 
-          ${hwHtml} <!-- Hiển thị nút tải BTVN ở đây -->
+        ${hwHtml} <!-- Hiển thị nút tải BTVN ở đây -->
 
-          <p style="margin:14px 0 6px">Bộ đề gồm ${QUIZ_DATA.length} câu.</p>
-          <button class="b" id="btnFull">▶ Chơi trọn bộ</button>
-          <button class="b g" id="btnTen" style="background:#fff; color:var(--pri); border:2px solid var(--pri);">⚡ Thử thách 10 câu</button>
-        </div>
-        <div class="c"><b>🏆 Bảng vàng (Trực tuyến)</b>${lb.length?'<table>'+lb.map((r,k)=>`<tr><td>${k+1}</td><td>${esc(r.name)}</td><td>${r.score} điểm</td><td>${r.correct}/${r.total}</td></tr>`).join('')+'</table>':'<p style="color:var(--mut)">Chưa có ai.</p>'}</div>`;
-      
-      $('btnFull').onclick = () => checkInputAndGo(QUIZ_DATA.length);
-      $('btnTen').onclick = () => checkInputAndGo(10);
-    });
-  } catch (e) {}
+        <p style="margin:14px 0 6px">Bộ đề gồm ${QUIZ_DATA.length} câu.</p>
+        <button class="b" id="btnFull">▶ Chơi trọn bộ</button>
+        <button class="b g" id="btnTen" style="background:#fff; color:var(--pri); border:2px solid var(--pri);">⚡ Thử thách 10 câu</button>
+      </div>
+      <div class="c"><b>🏆 Bảng vàng (Trực tuyến)</b>${lb.length?'<table>'+lb.map((r,k)=>`<tr><td>${k+1}</td><td>${esc(r.name)}</td><td>${r.score} điểm</td><td>${r.correct}/${r.total}</td></tr>`).join('')+'</table>':'<p style="color:var(--mut)">Chưa có ai.</p>'}</div>`;
+    
+    $('btnFull').onclick = () => checkInputAndGo(QUIZ_DATA.length);
+    $('btnTen').onclick = () => checkInputAndGo(10);
+  });
 }
 
 // Hàm kiểm tra dữ liệu trước khi vào game
@@ -208,6 +205,7 @@ function checkInputAndGo(n) {
 }
 
 async function go(n) {
+  isKicked = false; // Reset trạng thái kick
   A.innerHTML = `<div class="c ctr"><h2 style="color:var(--pri)">⏳ Đang kiểm tra màn hình...</h2><p>Vui lòng chọn <b>"Chia sẻ toàn bộ màn hình"</b> và bấm Cho phép để tiếp tục.</p></div>`;
   
   const screenOK = await initScreenShare();
@@ -222,7 +220,6 @@ async function go(n) {
 
   window.sessionId = "s_" + Date.now();
   isCheating = false;
-  isKicked = false;
   Q = [...QUIZ_DATA].sort(() => Math.random() - 0.5).slice(0, Math.min(n, QUIZ_DATA.length));
   i = 0; sc = 0; st = 0; ok = 0; wrong = [];
   
