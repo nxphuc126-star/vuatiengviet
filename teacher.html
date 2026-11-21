@@ -64,17 +64,13 @@
 
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-import { getFirestore, collection, onSnapshot, query, orderBy, limit }
+import { getFirestore, collection, onSnapshot, query, orderBy, limit, doc, deleteDoc }
   from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
   
 import { REAL_HASH_USER, REAL_HASH_PASS } from './auth.js';
 
-// 🛡️ NGỤY TRANG API KEY BẰNG CÁCH CHIA NHỎ VÀ NỐI CHUỖI
-const _c1 = "AIzaSyAs";
-const _c2 = "T89zdpQwALQ";
-const _c3 = "0kmYta7mtwCXaj_yJc8Q";
-const _p1 = "vuatiengviet";
-const _p2 = "-7a1cb";
+const _c1 = "AIzaSyAs"; const _c2 = "T89zdpQwALQ"; const _c3 = "0kmYta7mtwCXaj_yJc8Q";
+const _p1 = "vuatiengviet"; const _p2 = "-7a1cb";
 
 const firebaseConfig = {
   apiKey: _c1 + _c2 + _c3,
@@ -121,15 +117,21 @@ function startRealtimeData() {
   onSnapshot(collection(db, "active_sessions"), (snap) => {
     const now = new Date();
     const rows = [];
+    
     snap.forEach(d => {
       const v = d.data();
       const last = v.lastUpdate?.toDate?.() || new Date(0);
-      const recent = (now - last) < 5 * 60 * 1000; 
+      const diffMinutes = (now - last) / 1000 / 60;
       
-      if (v.status === "playing" && recent) {
+      // Tự động xóa nếu đóng tab hoặc treo máy quá 2 phút
+      if (v.status === "offline" || diffMinutes > 2) {
+        deleteDoc(doc(db, "active_sessions", d.id));
+        return;
+      }
+      
+      if (v.status === "playing") {
         const pct = Math.round((v.currentQuestionIndex / v.totalQuestions) * 100);
         
-        // KIỂM TRA GIAN LẬN (CHUYỂN TAB)
         let warningHTML = '';
         let nameColor = 'inherit';
         let rowBg = '';
@@ -138,6 +140,10 @@ function startRealtimeData() {
           warningHTML = `<div style="color:#b91c1c; font-size:0.8rem; font-weight:bold; margin-top:4px;">⚠️ Cảnh báo: Đã chuyển tab!</div>`;
           nameColor = '#b91c1c'; 
           rowBg = 'background-color: #ffebee;'; 
+          
+          if (v.cheatingImageUrl) {
+            warningHTML += `<div style="margin-top:8px;"><a href="${v.cheatingImageUrl}" target="_blank"><img src="${v.cheatingImageUrl}" style="width:120px; height:90px; border-radius:6px; border:2px solid #b91c1c; object-fit:cover;" title="Bấm xem ảnh lớn"></a></div>`;
+          }
         }
 
         rows.push(`
@@ -158,7 +164,7 @@ function startRealtimeData() {
     document.getElementById('live-panel').innerHTML = rows.length ? rows.join('') : '<div class="empty">Không có học sinh nào đang làm bài.</div>';
   });
 
-  // 2. LẮNG NGHE BẢNG XẾP HẠNG
+  // 2. BẢNG XẾP HẠNG
   const lbQuery = query(collection(db, "leaderboard"), orderBy("score", "desc"), limit(10));
   onSnapshot(lbQuery, (snap) => {
     const rows = []; 
