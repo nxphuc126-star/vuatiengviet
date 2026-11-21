@@ -2,6 +2,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
 import { getFirestore, collection, doc, setDoc, addDoc, onSnapshot, query, orderBy, limit, deleteDoc, getDoc }
   from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
+// ⚠️ THAY BẰNG CONFIG CỦA BẠN
 const firebaseConfig = {
   apiKey: "AIzaSyAsT89zdpQwALQ0kmYta7mtwCXaj_yJc8Q",
   authDomain: "vuatiengviet-7a1cb.firebaseapp.com",
@@ -87,10 +88,11 @@ function listenForKick() {
   onSnapshot(doc(db, "active_sessions", window.sessionId), (docSnap) => {
     if (docSnap.exists()) {
       const data = docSnap.data();
+      
+      // 1. XỬ LÝ KHI BỊ ĐUỔI
       if (data.kicked === true && !isKicked) {
         isKicked = true;
         clearInterval(tm);
-        
         deleteDoc(doc(db, "active_sessions", window.sessionId));
 
         A.innerHTML = `
@@ -104,11 +106,28 @@ function listenForKick() {
         setInterval(() => {
           kickTime--;
           if ($('kick-timer')) $('kick-timer').textContent = kickTime;
-          if (kickTime <= 0) {
-            window.close();
-            window.location.href = "about:blank";
-          }
+          if (kickTime <= 0) { window.close(); window.location.href = "about:blank"; }
         }, 1000);
+      }
+
+      // 2. XỬ LÝ KHI BỊ CẢNH BÁO
+      if (data.warningTimestamp && data.warningTimestamp > (window.lastWarningTime || 0)) {
+        window.lastWarningTime = data.warningTimestamp;
+        sc = data.score; // Cập nhật lại điểm bị trừ
+        
+        // Cập nhật điểm trên góc màn hình
+        if (document.querySelector('.top span:nth-child(2)')) {
+          document.querySelector('.top span:nth-child(2)').textContent = `⭐ ${sc} · 🔥 ${st}`;
+        }
+
+        // Hiện thông báo góc phải dưới
+        const toast = document.createElement('div');
+        toast.style.cssText = "position:fixed; bottom:20px; right:20px; background:#b91c1c; color:#fff; padding:15px 20px; border-radius:10px; font-weight:bold; z-index:9999; box-shadow:0 4px 10px rgba(0,0,0,0.3); font-size:1rem; max-width:300px; animation: slideIn 0.3s ease-out;";
+        toast.innerHTML = `⚠️ CẢNH CÁO TỪ GIÁO VIÊN!<br><span style="font-weight:normal; font-size:0.9rem;">${esc(data.warningMessage)}</span>`;
+        document.body.appendChild(toast);
+        
+        // Tự ẩn sau 6 giây
+        setTimeout(() => { toast.remove(); }, 6000);
       }
     }
   });
