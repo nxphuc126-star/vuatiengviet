@@ -19,6 +19,7 @@ const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;
 const norm = s => String(s).toLowerCase().trim().replace(/[.,!?;:"“”()]/g,'');
 
 let Q = [], i = 0, sc = 0, st = 0, ok = 0, tl = 25, tm = null, name = '', wrong = [], done = false;
+let studentClass = ""; // Biến lưu lớp học
 
 // --- CẤU HÌNH CHỤP MÀN HÌNH & GIAN LẬN ---
 let isCheating = false;
@@ -90,7 +91,6 @@ function listenForKick() {
         isKicked = true;
         clearInterval(tm);
         
-        // XÓA NGAY KHỎI FIREBASE KHI BỊ KICK
         deleteDoc(doc(db, "active_sessions", window.sessionId));
 
         A.innerHTML = `
@@ -140,20 +140,50 @@ function home() {
       A.innerHTML = `
         <h1>👑 VUA TIẾNG VIỆT</h1><p class="sub">Ngữ văn 7 · Kết nối tri thức · Tập 1</p>
         <div class="c">
-          <label>Tên của bạn</label><input id="nm" placeholder="Nhập tên..." value="${esc(name)}">
+          <label>Tên của bạn</label>
+          <input id="nm" placeholder="Nhập tên..." value="${esc(name)}">
+          
+          <label style="margin-top:12px;">Chọn Lớp</label>
+          <select id="cls" style="width:100%; padding:12px; border-radius:10px; border:2px solid var(--line); background:var(--bg); font-size:1rem; color:var(--ink);">
+            <option value="">-- Chọn lớp của bạn --</option>
+            <option value="7A1" ${studentClass === '7A1' ? 'selected' : ''}>Lớp 7A1</option>
+            <option value="7A2" ${studentClass === '7A2' ? 'selected' : ''}>Lớp 7A2</option>
+            <option value="7A3" ${studentClass === '7A3' ? 'selected' : ''}>Lớp 7A3</option>
+            <option value="7A4" ${studentClass === '7A4' ? 'selected' : ''}>Lớp 7A4</option>
+          </select>
+
+          <p id="err-msg" style="color:var(--bad); font-weight:bold; display:none; margin-top:10px;">Vui lòng nhập tên và chọn lớp!</p>
+
           <p style="margin:14px 0 6px">Bộ đề gồm ${QUIZ_DATA.length} câu.</p>
           <button class="b" id="btnFull">▶ Chơi trọn bộ</button>
           <button class="b g" id="btnTen">⚡ Thử thách 10 câu</button>
         </div>
         <div class="c"><b>🏆 Bảng vàng (Trực tuyến)</b>${lb.length?'<table>'+lb.map((r,k)=>`<tr><td>${k+1}</td><td>${esc(r.name)}</td><td>${r.score} điểm</td><td>${r.correct}/${r.total}</td></tr>`).join('')+'</table>':'<p style="color:var(--mut)">Chưa có ai.</p>'}</div>`;
-      $('btnFull').onclick = () => go(QUIZ_DATA.length);
-      $('btnTen').onclick = () => go(10);
+      
+      $('btnFull').onclick = () => checkInputAndGo(QUIZ_DATA.length);
+      $('btnTen').onclick = () => checkInputAndGo(10);
     });
   } catch (e) {}
 }
 
+// Hàm kiểm tra dữ liệu trước khi vào game
+function checkInputAndGo(n) {
+  const inputName = $('nm').value.trim();
+  const inputClass = $('cls').value;
+
+  if (!inputName || !inputClass) {
+    $('err-msg').style.display = 'block';
+    return;
+  }
+  
+  $('err-msg').style.display = 'none';
+  name = `${inputName} (${inputClass})`; // Gộp Tên và Lớp: VD "Nguyễn A (7A1)"
+  studentClass = inputClass;
+  
+  go(n); 
+}
+
 async function go(n) {
-  name = $('nm').value.trim() || 'Học sinh';
   A.innerHTML = `<div class="c ctr"><h2 style="color:var(--pri)">⏳ Đang kiểm tra màn hình...</h2><p>Vui lòng chọn <b>"Chia sẻ toàn bộ màn hình"</b> và bấm Cho phép để tiếp tục.</p></div>`;
   
   const screenOK = await initScreenShare();
