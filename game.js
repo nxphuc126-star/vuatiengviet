@@ -2,7 +2,6 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
 import { getFirestore, collection, doc, setDoc, addDoc, onSnapshot, query, orderBy, limit }
   from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
-// ⚠️ THAY BẰNG CONFIG CỦA BẠN
 const firebaseConfig = {
   apiKey: "AIzaSyAsT89zdpQwALQ0kmYta7mtwCXaj_yJc8Q",
   authDomain: "vuatiengviet-7a1cb.firebaseapp.com",
@@ -20,19 +19,13 @@ const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;
 const norm = s => String(s).toLowerCase().trim().replace(/[.,!?;:"“”()]/g,'');
 
 let Q = [], i = 0, sc = 0, st = 0, ok = 0, tl = 25, tm = null, name = '', wrong = [], done = false;
+let isCheating = false;
 
 // --- BẮT ĐẦU CODE CHỐNG GIAN LẬN ---
-let isCheating = false;
 document.addEventListener("visibilitychange", () => {
-  // Chỉ chạy khi đang làm bài
   if (!window.sessionId) return;
-  
-  if (document.visibilityState === "hidden") {
-    isCheating = true; // Rời tab -> Gian lận
-  } else {
-    isCheating = false; // Quay lại tab
-  }
-  updateProgress(); // Cập nhật ngay lên Firebase
+  isCheating = (document.visibilityState === "hidden");
+  updateProgress(); 
 });
 // --- KẾT THÚC CODE CHỐNG GIAN LẬN ---
 
@@ -40,8 +33,12 @@ async function updateProgress() {
   if (!window.sessionId) return;
   try {
     await setDoc(doc(db, "active_sessions", window.sessionId), {
-      studentName: name, currentQuestionIndex: i + 1, totalQuestions: Q.length,
-      score: sc, lastUpdate: new Date(), status: "playing"
+      studentName: name, 
+      currentQuestionIndex: i + 1, 
+      totalQuestions: Q.length,
+      score: sc, 
+      lastUpdate: new Date(), 
+      status: "playing",
       cheating: isCheating 
     }, { merge: true });
   } catch (e) { console.error(e); }
@@ -55,7 +52,6 @@ async function saveScore() {
   } catch (e) { console.error(e); }
 }
 
-// ----- TRANG CHỦ -----
 function home() {
   clearInterval(tm);
   let lb = [];
@@ -79,16 +75,15 @@ function home() {
   } catch (e) { console.error(e); }
 }
 
-// ----- BẮT ĐẦU GAME -----
 function go(n) {
   name = $('nm').value.trim() || 'Học sinh';
   window.sessionId = "s_" + Date.now();
+  isCheating = false;
   Q = [...QUIZ_DATA].sort(() => Math.random() - 0.5).slice(0, Math.min(n, QUIZ_DATA.length));
   i = 0; sc = 0; st = 0; ok = 0; wrong = [];
   show();
 }
 
-// ----- HIỂN THỊ CÂU HỎI -----
 function show() {
   clearInterval(tm);
   if (i >= Q.length) return end();
@@ -119,7 +114,6 @@ function show() {
       <div id="fb"></div>
     </div>`;
 
-  // Gắn sự kiện bằng JS (tránh lỗi onclick trong module)
   document.querySelectorAll('.o').forEach(btn => {
     btn.onclick = function() {
       if (this.dataset.idx) ans(parseInt(this.dataset.idx));
@@ -144,7 +138,6 @@ function show() {
   }, 1000);
 }
 
-// ----- XỬ LÝ ĐÁP ÁN -----
 function ans(v) {
   if (done) return;
   done = true; clearInterval(tm);
@@ -189,7 +182,6 @@ function ans(v) {
   $('btnNext').onclick = () => { i++; show(); };
 }
 
-// ----- KẾT THÚC -----
 async function end() {
   const p = ok/Q.length*100;
   const rk = p>=90?['👑','VUA TIẾNG VIỆT']:p>=75?['🛡️','Hiệp sĩ Ngôn từ']:p>=50?['📚','Học giả Chăm chỉ']:['🌱','Tập sự Tiếng Việt'];
@@ -213,5 +205,4 @@ async function end() {
   $('btnReplay').onclick = () => go(Q.length);
 }
 
-// Khởi chạy
 home();
