@@ -1,5 +1,5 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-import { getFirestore, collection, doc, setDoc, addDoc, onSnapshot, query, orderBy, limit, getDoc }
+import { getFirestore, collection, doc, setDoc, addDoc, onSnapshot, query, orderBy, limit, deleteDoc }
   from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
 const firebaseConfig = {
@@ -89,6 +89,10 @@ function listenForKick() {
       if (data.kicked === true && !isKicked) {
         isKicked = true;
         clearInterval(tm);
+        
+        // XÓA NGAY KHỎI FIREBASE KHI BỊ KICK
+        deleteDoc(doc(db, "active_sessions", window.sessionId));
+
         A.innerHTML = `
           <div class="c ctr" style="border-color:var(--bad); background:#ffebee; margin-top:50px;">
             <h1 style="color:var(--bad); font-size:2rem;">🚫 BẠN ĐÃ BỊ ĐUỔI</h1>
