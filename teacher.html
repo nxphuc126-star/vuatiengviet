@@ -64,7 +64,7 @@
 
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-import { getFirestore, collection, onSnapshot, query, orderBy, limit, doc, deleteDoc }
+import { getFirestore, collection, onSnapshot, query, orderBy, limit, doc, deleteDoc, updateDoc }
   from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
   
 import { REAL_HASH_USER, REAL_HASH_PASS } from './auth.js';
@@ -112,6 +112,19 @@ document.getElementById('password').addEventListener('keypress', function(e) {
   if (e.key === 'Enter') window.checkLogin();
 });
 
+// Hàm Kick học sinh
+window.kickStudent = async function(sessionId) {
+  if (confirm("Bạn có chắc chắn muốn đuổi học sinh này ra khỏi phòng thi?")) {
+    try {
+      await updateDoc(doc(db, "active_sessions", sessionId), {
+        kicked: true
+      });
+    } catch (e) {
+      alert("Lỗi khi đuổi học sinh: " + e.message);
+    }
+  }
+};
+
 function startRealtimeData() {
   // 1. LẮNG NGHE TIẾN ĐỘ VÀ GIAN LẬN
   onSnapshot(collection(db, "active_sessions"), (snap) => {
@@ -153,9 +166,13 @@ function startRealtimeData() {
               <div class="meta">Đang làm câu ${v.currentQuestionIndex}/${v.totalQuestions} · ${v.score} điểm</div>
               ${warningHTML}
             </div>
-            <div class="progress-container">
-              <div class="progress-text">${pct}%</div>
-              <div class="progress"><i style="width:${pct}%"></i></div>
+            <div style="display:flex; flex-direction:column; align-items:flex-end; gap:8px;">
+              <div class="progress-container">
+                <div class="progress-text">${pct}%</div>
+                <div class="progress"><i style="width:${pct}%"></i></div>
+              </div>
+              <!-- NÚT KICK HỌC SINH -->
+              <button class="b" style="background:#b91c1c; padding:4px 10px; font-size:0.8rem; margin:0;" onclick="window.kickStudent('${d.id}')">Đuổi</button>
             </div>
           </div>
         `);
