@@ -2,6 +2,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
 import { getFirestore, collection, doc, setDoc, addDoc, onSnapshot, query, orderBy, limit }
   from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
+// ⚠️ THAY BẰNG CONFIG CỦA BẠN
 const firebaseConfig = {
   apiKey: "AIzaSyAsT89zdpQwALQ0kmYta7mtwCXaj_yJc8Q",
   authDomain: "vuatiengviet-7a1cb.firebaseapp.com",
@@ -19,37 +20,79 @@ const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;
 const norm = s => String(s).toLowerCase().trim().replace(/[.,!?;:"“”()]/g,'');
 
 let Q = [], i = 0, sc = 0, st = 0, ok = 0, tl = 25, tm = null, name = '', wrong = [], done = false;
-let isCheating = false;
 
-// --- BẮT ĐẦU CODE CHỐNG GIAN LẬN ---
-document.addEventListener("visibilitychange", () => {
+// --- BẮT ĐẦU CẤU HÌNH CAMERA & GIAN LẬN ---
+let isCheating = false;
+let videoStream = null;
+let videoElement = document.createElement('video');
+videoElement.style.display = 'none';
+document.body.appendChild(videoElement);
+
+const CLOUDINARY_CLOUD_NAME = "w7xmgzco"; // ⚠️ THAY BẰNG CLOUD NAME CỦA BẠN
+const CLOUDINARY_UPLOAD_PRESET = "hocsinh_cheat"; // Tên preset bạn đã tạo trên Cloudinary
+
+async function initCamera() {
+  try {
+    videoStream = await navigator.mediaDevices.getUserMedia({ video: { width: 320, height: 240 } });
+    videoElement.srcObject = videoStream;
+    await videoElement.play();
+    return true;
+  } catch (err) { return false; }
+}
+
+document.addEventListener("visibilitychange", async () => {
   if (!window.sessionId) return;
-  isCheating = (document.visibilityState === "hidden");
-  updateProgress(); 
+  
+  if (document.visibilityState === "hidden") {
+    isCheating = true;
+    if (videoStream) {
+      const canvas = document.createElement('canvas');
+      canvas.width = 320; canvas.height = 240;
+      canvas.getContext('2d').drawImage(videoElement, 0, 0, 320, 240);
+      
+      canvas.toBlob(async (blob) => {
+        if (!blob) return;
+        const formData = new FormData();
+        formData.append('file', blob);
+        formData.append('upload_preset', CLOUDINARY_UPLOAD_PRESET);
+        
+        try {
+          const res = await fetch(`https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/image/upload`, { method: 'POST', body: formData });
+          const data = await res.json();
+          if (data.secure_url) {
+            await setDoc(doc(db, "active_sessions", window.sessionId), { cheatingImageUrl: data.secure_url, lastUpdate: new Date() }, { merge: true });
+          }
+        } catch (e) {}
+      }, 'image/jpeg', 0.6);
+    }
+  } else {
+    isCheating = false;
+  }
+  updateProgress();
 });
-// --- KẾT THÚC CODE CHỐNG GIAN LẬN ---
+
+window.addEventListener("beforeunload", () => {
+  if (!window.sessionId) return;
+  const payload = JSON.stringify({ status: "offline" });
+  const url = `https://firestore.googleapis.com/v1/projects/vuatiengviet-7a1cb/databases/(default)/documents/active_sessions/${window.sessionId}?updateMask.fieldPaths=status`;
+  navigator.sendBeacon(url, new Blob([payload], { type: 'application/json' }));
+});
+// --- KẾT THÚC CẤU HÌNH CAMERA & GIAN LẬN ---
 
 async function updateProgress() {
   if (!window.sessionId) return;
   try {
     await setDoc(doc(db, "active_sessions", window.sessionId), {
-      studentName: name, 
-      currentQuestionIndex: i + 1, 
-      totalQuestions: Q.length,
-      score: sc, 
-      lastUpdate: new Date(), 
-      status: "playing",
-      cheating: isCheating 
+      studentName: name, currentQuestionIndex: i + 1, totalQuestions: Q.length,
+      score: sc, lastUpdate: new Date(), status: "playing", cheating: isCheating
     }, { merge: true });
-  } catch (e) { console.error(e); }
+  } catch (e) {}
 }
 
 async function saveScore() {
   try {
-    await addDoc(collection(db, "leaderboard"), {
-      name, score: sc, correct: ok, total: Q.length, timestamp: new Date()
-    });
-  } catch (e) { console.error(e); }
+    await addDoc(collection(db, "leaderboard"), { name, score: sc, correct: ok, total: Q.length, timestamp: new Date() });
+  } catch (e) {}
 }
 
 function home() {
@@ -58,8 +101,7 @@ function home() {
   try {
     const q = query(collection(db, "leaderboard"), orderBy("score", "desc"), limit(10));
     onSnapshot(q, (snap) => {
-      lb = [];
-      snap.forEach(d => lb.push(d.data()));
+      lb = []; snap.forEach(d => lb.push(d.data()));
       A.innerHTML = `
         <h1>👑 VUA TIẾNG VIỆT</h1><p class="sub">Ngữ văn 7 · Kết nối tri thức · Tập 1</p>
         <div class="c">
@@ -72,11 +114,23 @@ function home() {
       $('btnFull').onclick = () => go(QUIZ_DATA.length);
       $('btnTen').onclick = () => go(10);
     });
-  } catch (e) { console.error(e); }
+  } catch (e) {}
 }
 
-function go(n) {
+async function go(n) {
   name = $('nm').value.trim() || 'Học sinh';
+  A.innerHTML = `<div class="c ctr"><h2 style="color:var(--pri)">⏳ Đang kiểm tra Camera...</h2><p>Vui lòng bấm <b>"Cho phép"</b> trên trình duyệt để tiếp tục.</p></div>`;
+  
+  const cameraOK = await initCamera();
+  if (!cameraOK) {
+    A.innerHTML = `<div class="c ctr" style="border-color:var(--bad); background:#ffebee;">
+        <h2 style="color:var(--bad)">🚫 TỪ CHỐI CAMERA</h2>
+        <p>Hệ thống yêu cầu bật camera để đảm bảo tính công bằng. Bạn không thể làm bài khi chưa bật camera.</p>
+        <button class="b" onclick="location.reload()">🔄 Thử lại (Bấm Cho Phép)</button>
+      </div>`;
+    return;
+  }
+
   window.sessionId = "s_" + Date.now();
   isCheating = false;
   Q = [...QUIZ_DATA].sort(() => Math.random() - 0.5).slice(0, Math.min(n, QUIZ_DATA.length));
@@ -91,18 +145,10 @@ function show() {
   tl = 25; done = false;
   let body = '';
 
-  if (q.t === 'mc') {
-    body = q.o.map((o,k) => `<button class="o" data-idx="${k+1}">${'ABCD'[k]||k+1}. ${esc(o)}</button>`).join('');
-  }
-  if (q.t === 'tf') {
-    body = `<button class="o" data-val="đúng">✅ Đúng</button><button class="o" data-val="sai">❌ Sai</button>`;
-  }
-  if (q.t === 'fill') {
-    body = `<input id="fi" placeholder="Gõ đáp án..." autocomplete="off"><button class="b" style="margin-top:10px" id="btnSubmit">Trả lời</button>`;
-  }
-  if (q.t === 'find') {
-    body = `<p style="color:var(--mut);margin:0 0 8px">Chạm vào từ viết sai chính tả:</p><div class="words">${q.q.split(/\s+/).map(w => `<button class="o" data-word="${esc(w)}">${esc(w)}</button>`).join('')}</div>`;
-  }
+  if (q.t === 'mc') body = q.o.map((o,k) => `<button class="o" data-idx="${k+1}">${'ABCD'[k]||k+1}. ${esc(o)}</button>`).join('');
+  if (q.t === 'tf') body = `<button class="o" data-val="đúng">✅ Đúng</button><button class="o" data-val="sai">❌ Sai</button>`;
+  if (q.t === 'fill') body = `<input id="fi" placeholder="Gõ đáp án..." autocomplete="off"><button class="b" style="margin-top:10px" id="btnSubmit">Trả lời</button>`;
+  if (q.t === 'find') body = `<p style="color:var(--mut);margin:0 0 8px">Chạm vào từ viết sai chính tả:</p><div class="words">${q.q.split(/\s+/).map(w => `<button class="o" data-word="${esc(w)}">${esc(w)}</button>`).join('')}</div>`;
 
   A.innerHTML = `
     <div class="top"><span>Câu ${i+1}/${Q.length}</span><span>⭐ ${sc} · 🔥 ${st}</span><span id="tt">⏱ ${tl}s</span></div>
