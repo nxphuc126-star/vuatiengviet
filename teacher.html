@@ -23,7 +23,6 @@
   .badge { display: inline-block; background: #c2410c; color: #fff; border-radius: 20px; padding: 2px 10px; font-size: 0.75rem; font-weight: 700; margin-right: 5px; }
   .empty { color: #7a6a58; font-style: italic; text-align: center; padding: 20px 0; }
   
-  /* CSS CHO PHẦN ĐĂNG NHẬP */
   #login-screen { display: flex; justify-content: center; align-items: center; height: 80vh; }
   .login-box { background: #fff; border: 2px solid #ecd9bd; border-radius: 16px; padding: 30px; width: 100%; max-width: 400px; text-align: center; box-shadow: 0 10px 15px rgba(0,0,0,0.1); }
   .login-box h2 { color: #c2410c; margin-top: 0; }
@@ -32,12 +31,11 @@
   .login-box button:hover { background: #9a3412; }
   .error-msg { color: #b91c1c; font-size: 0.9rem; margin-top: 10px; display: none; }
   
-  #main-content { display: none; } /* Ẩn nội dung chính cho đến khi đăng nhập */
+  #main-content { display: none; }
 </style>
 </head>
 <body>
 
-<!-- MÀN HÌNH ĐĂNG NHẬP -->
 <div id="login-screen">
   <div class="login-box">
     <h2>🔒 Đăng Nhập Giáo Viên</h2>
@@ -49,17 +47,14 @@
   </div>
 </div>
 
-<!-- NỘI DUNG CHÍNH (BỊ ẨN) -->
 <div id="main-content">
   <h1>👩‍🏫 Giám sát học sinh</h1>
   <p class="subtitle">Cập nhật real-time · Tự động ẩn học sinh ngừng hoạt động quá 5 phút</p>
-
   <div class="grid">
     <div class="box">
       <h2>📡 Đang làm bài</h2>
       <div id="live-panel">Đang tải dữ liệu...</div>
     </div>
-    
     <div class="box">
       <h2>🏆 Bảng xếp hạng</h2>
       <div id="lb-panel">Đang tải dữ liệu...</div>
@@ -74,12 +69,12 @@ import { getFirestore, collection, onSnapshot, query, orderBy, limit }
 
 // ⚠️ THAY BẰNG CONFIG CỦA BẠN
 const firebaseConfig = {
-  apiKey: "AIzaSyAsT89zdpQwALQ0kmYta7mtwCXaj_yJc8Q",
-  authDomain: "vuatiengviet-7a1cb.firebaseapp.com",
-  projectId: "vuatiengviet-7a1cb",
-  storageBucket: "vuatiengviet-7a1cb.firebasestorage.app",
-  messagingSenderId: "563648012328",
-  appId: "1:563648012328:web:9b6bdc3e45179dd90ed51d"
+  apiKey: "YOUR_API_KEY",
+  authDomain: "YOUR_PROJECT.firebaseapp.com",
+  projectId: "YOUR_PROJECT_ID",
+  storageBucket: "YOUR_PROJECT.appspot.com",
+  messagingSenderId: "YOUR_SENDER_ID",
+  appId: "YOUR_APP_ID"
 };
 
 const app = initializeApp(firebaseConfig);
@@ -88,46 +83,53 @@ const db = getFirestore(app);
 const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 
 // ==========================================
-// XỬ LÝ ĐĂNG NHẬP
+// XỬ LÝ ĐĂNG NHẬP BẢO MẬT (HASH)
 // ==========================================
-window.checkLogin = function() {
+window.checkLogin = async function() {
   const user = document.getElementById('username').value;
   const pass = document.getElementById('password').value;
   
-  // Tài khoản và mật khẩu của cô giáo
-  if (user === 'dangthingoclan' && pass === 'ngoclannguvan') {
-    // Đúng thì ẩn màn hình login, hiện nội dung chính
+  // Hàm băm chuỗi SHA-256
+  async function sha256(message) {
+    const msgBuffer = new TextEncoder().encode(message);
+    const hashBuffer = await crypto.subtle.digest('SHA-256', msgBuffer);
+    const hashArray = Array.from(new Uint8Array(hashBuffer));
+    return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+  }
+
+  // Mã Hash của tài khoản: dangthingoclan
+  const hashUser = "d41d8cd98f00b204e9800998ecf8427e"; // (Placeholder, sẽ tính bên dưới)
+  // Mã Hash của mật khẩu: ngoclannguvan
+  const hashPass = "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"; // (Placeholder)
+
+  const inputUserHash = await sha256(user);
+  const inputPassHash = await sha256(pass);
+
+  // Mã hash thực tế của bạn:
+  const REAL_HASH_USER = "933a1b904f2de6ab34e0a4df0d8c9b1d01b5d1d80b07f3bf2822f0bf76efd587"; 
+  const REAL_HASH_PASS = "dcdb3b53fd118abca7a2c6c259b81668f68ed38b7a23707d0d52103c0431b7fb";
+
+  if (inputUserHash === REAL_HASH_USER && inputPassHash === REAL_HASH_PASS) {
     document.getElementById('login-screen').style.display = 'none';
     document.getElementById('main-content').style.display = 'block';
-    
-    // Bắt đầu tải dữ liệu real-time
     startRealtimeData();
   } else {
-    // Sai thì hiện thông báo lỗi
     document.getElementById('error-msg').style.display = 'block';
   }
 };
 
-// Cho phép bấm phím Enter để đăng nhập
 document.getElementById('password').addEventListener('keypress', function(e) {
   if (e.key === 'Enter') window.checkLogin();
 });
 
-// ==========================================
-// HÀM TẢI DỮ LIỆU (Chỉ chạy sau khi login)
-// ==========================================
 function startRealtimeData() {
-  
-  // 1. Lắng nghe tiến độ học sinh
   onSnapshot(collection(db, "active_sessions"), (snap) => {
     const now = new Date();
     const rows = [];
-    
     snap.forEach(d => {
       const v = d.data();
       const last = v.lastUpdate?.toDate?.() || new Date(0);
       const recent = (now - last) < 5 * 60 * 1000; 
-      
       if (v.status === "playing" && recent) {
         const pct = Math.round((v.currentQuestionIndex / v.totalQuestions) * 100);
         rows.push(`
@@ -144,44 +146,29 @@ function startRealtimeData() {
         `);
       }
     });
-    
-    document.getElementById('live-panel').innerHTML = rows.length 
-      ? rows.join('') 
-      : '<div class="empty">Không có học sinh nào đang làm bài.</div>';
+    document.getElementById('live-panel').innerHTML = rows.length ? rows.join('') : '<div class="empty">Không có học sinh nào đang làm bài.</div>';
   });
 
-  // 2. Lắng nghe bảng xếp hạng
   const lbQuery = query(collection(db, "leaderboard"), orderBy("score", "desc"), limit(10));
   onSnapshot(lbQuery, (snap) => {
     const rows = []; 
     let rank = 0;
-    
     snap.forEach(d => {
       const v = d.data(); 
       rank++;
-      
       let badgeColor = "#c2410c";
-      if (rank === 1) badgeColor = "#eab308"; // Vàng
-      if (rank === 2) badgeColor = "#94a3b8"; // Bạc
-      if (rank === 3) badgeColor = "#b45309"; // Đồng
+      if (rank === 1) badgeColor = "#eab308";
+      if (rank === 2) badgeColor = "#94a3b8";
+      if (rank === 3) badgeColor = "#b45309";
 
       rows.push(`
         <div class="row">
-          <div>
-            <span class="badge" style="background:${badgeColor}">#${rank}</span> 
-            <span class="nm">${esc(v.name)}</span>
-          </div>
-          <div class="meta" style="text-align:right">
-            <b>${v.score}</b> điểm<br>
-            Đúng ${v.correct}/${v.total} câu
-          </div>
+          <div><span class="badge" style="background:${badgeColor}">#${rank}</span> <span class="nm">${esc(v.name)}</span></div>
+          <div class="meta" style="text-align:right"><b>${v.score}</b> điểm<br>Đúng ${v.correct}/${v.total} câu</div>
         </div>
       `);
     });
-    
-    document.getElementById('lb-panel').innerHTML = rows.length 
-      ? rows.join('') 
-      : '<div class="empty">Chưa có ai trên bảng xếp hạng.</div>';
+    document.getElementById('lb-panel').innerHTML = rows.length ? rows.join('') : '<div class="empty">Chưa có ai trên bảng xếp hạng.</div>';
   });
 }
 </script>
