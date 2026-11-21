@@ -4,12 +4,12 @@ import { getFirestore, collection, doc, setDoc, addDoc, onSnapshot, query, order
 
 // ⚠️ THAY BẰNG CONFIG CỦA BẠN
 const firebaseConfig = {
-  apiKey: "YOUR_API_KEY",
-  authDomain: "YOUR_PROJECT.firebaseapp.com",
-  projectId: "YOUR_PROJECT_ID",
-  storageBucket: "YOUR_PROJECT.appspot.com",
-  messagingSenderId: "YOUR_SENDER_ID",
-  appId: "YOUR_APP_ID"
+  apiKey: "AIzaSyAsT89zdpQwALQ0kmYta7mtwCXaj_yJc8Q",
+  authDomain: "vuatiengviet-7a1cb.firebaseapp.com",
+  projectId: "vuatiengviet-7a1cb",
+  storageBucket: "vuatiengviet-7a1cb.firebasestorage.app",
+  messagingSenderId: "563648012328",
+  appId: "1:563648012328:web:9b6bdc3e45179dd90ed51d"
 };
 
 const app = initializeApp(firebaseConfig);
