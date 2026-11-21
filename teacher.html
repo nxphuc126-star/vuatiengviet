@@ -67,14 +67,16 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
 import { getFirestore, collection, onSnapshot, query, orderBy, limit }
   from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
-// ⚠️ THAY BẰNG CONFIG CỦA BẠN
+// ⚠️ IMPORT MẬT KHẨU TỪ FILE AUTH.JS
+import { REAL_HASH_USER, REAL_HASH_PASS } from './auth.js';
+
 const firebaseConfig = {
-  apiKey: "YOUR_API_KEY",
-  authDomain: "YOUR_PROJECT.firebaseapp.com",
-  projectId: "YOUR_PROJECT_ID",
-  storageBucket: "YOUR_PROJECT.appspot.com",
-  messagingSenderId: "YOUR_SENDER_ID",
-  appId: "YOUR_APP_ID"
+  apiKey: "AIzaSyAsT89zdpQwALQ0kmYta7mtwCXaj_yJc8Q",
+  authDomain: "vuatiengviet-7a1cb.firebaseapp.com",
+  projectId: "vuatiengviet-7a1cb",
+  storageBucket: "vuatiengviet-7a1cb.firebasestorage.app",
+  messagingSenderId: "563648012328",
+  appId: "1:563648012328:web:9b6bdc3e45179dd90ed51d"
 };
 
 const app = initializeApp(firebaseConfig);
@@ -82,14 +84,10 @@ const db = getFirestore(app);
 
 const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 
-// ==========================================
-// XỬ LÝ ĐĂNG NHẬP BẢO MẬT (HASH)
-// ==========================================
 window.checkLogin = async function() {
   const user = document.getElementById('username').value;
   const pass = document.getElementById('password').value;
   
-  // Hàm băm chuỗi SHA-256
   async function sha256(message) {
     const msgBuffer = new TextEncoder().encode(message);
     const hashBuffer = await crypto.subtle.digest('SHA-256', msgBuffer);
@@ -97,17 +95,8 @@ window.checkLogin = async function() {
     return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
   }
 
-  // Mã Hash của tài khoản: dangthingoclan
-  const hashUser = "d41d8cd98f00b204e9800998ecf8427e"; // (Placeholder, sẽ tính bên dưới)
-  // Mã Hash của mật khẩu: ngoclannguvan
-  const hashPass = "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"; // (Placeholder)
-
   const inputUserHash = await sha256(user);
   const inputPassHash = await sha256(pass);
-
-  // Mã hash thực tế của bạn:
-  const REAL_HASH_USER = "933a1b904f2de6ab34e0a4df0d8c9b1d01b5d1d80b07f3bf2822f0bf76efd587"; 
-  const REAL_HASH_PASS = "dcdb3b53fd118abca7a2c6c259b81668f68ed38b7a23707d0d52103c0431b7fb";
 
   if (inputUserHash === REAL_HASH_USER && inputPassHash === REAL_HASH_PASS) {
     document.getElementById('login-screen').style.display = 'none';
