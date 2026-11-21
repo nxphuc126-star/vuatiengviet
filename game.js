@@ -26,7 +26,7 @@ let isCheating = false;
 let displayStream = null;
 let isKicked = false;
 
-const CLOUDINARY_CLOUD_NAME = "YOUR_CLOUD_NAME"; // ⚠️ ĐIỀN CLOUD NAME CỦA BẠN
+const CLOUDINARY_CLOUD_NAME = "w7xmgzco"; // ⚠️ ĐIỀN CLOUD NAME CỦA BẠN
 const CLOUDINARY_UPLOAD_PRESET = "hocsinh_cheat";
 
 async function initScreenShare() {
