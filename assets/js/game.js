@@ -21,6 +21,7 @@ const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;
 const norm = s => String(s).toLowerCase().trim().replace(/[.,!?;:"“”()]/g,'');
 
 let Q = [], i = 0, sc = 0, st = 0, ok = 0, tl = 25, tm = null, name = '', wrong = [], done = false;
+let fishingEnabled = false;
 let studentClass = "";
 let currentView = "home";
 let unsubscribeLeaderboard = null;
@@ -155,14 +156,14 @@ async function home() {
       </div>
       <div class="c"><b>🏆 Bảng vàng (Trực tuyến)</b>${lb.length?'<table>'+lb.map((r,k)=>`<tr><td>${k+1}</td><td>${esc(r.name)}</td><td>${r.score} điểm</td><td>${r.correct}/${r.total}</td></tr>`).join('')+'</table>':'<p style="color:var(--mut)">Chưa có ai.</p>'}</div>`;
     
-    $('btnFull').onclick = () => checkInputAndGo(QUIZ_DATA.length);
-    $('btnTen').onclick = () => checkInputAndGo(10);
+    $('btnFull').onclick = () => checkInputAndGo(QUIZ_DATA.length, false);
+    $('btnTen').onclick = () => checkInputAndGo(10, true);
 
 
   });
 }
 
-function checkInputAndGo(n) {
+function checkInputAndGo(n, useFishing = false) {
   const inputName = $('nm').value.trim();
   const inputClass = $('cls').value;
 
@@ -175,11 +176,12 @@ function checkInputAndGo(n) {
   name = `${inputName} (${inputClass})`;
   studentClass = inputClass;
   
-  go(n); 
+  go(n, useFishing); 
 }
 
-async function go(n) {
+async function go(n, useFishing = false) {
   isKicked = false;
+  fishingEnabled = useFishing;
   Q = [...QUIZ_DATA].sort(() => Math.random() - 0.5).slice(0, Math.min(n, QUIZ_DATA.length));
   i = 0; sc = 0; st = 0; ok = 0; wrong = [];
   isCheating = false;
@@ -275,7 +277,7 @@ function ans(v) {
     </div>
     <button class="b" style="margin-top:10px" id="btnNext">${i+1<Q.length?'Câu tiếp theo ➜':'Xem kết quả 🏁'}</button>`;
     
-  $('btnNext').onclick = () => { i++; fishingRound(); };
+  $('btnNext').onclick = () => { i++; if (fishingEnabled) fishingRound(); else show(); };
 }
 
 function fishingRound() {
@@ -350,7 +352,7 @@ async function end() {
     ${wrong.length ? `<div class="c"><b>Các câu cần ôn lại</b>${wrong.map(q=>`<p><span class="chip">${esc(q.c)}</span> ${esc(q.q)}<br>➜ <b>${esc(q.t==='mc'?q.o[q.a-1]:q.a)}</b> — ${esc(q.e||'')}</p>`).join('')}</div>` : ''}`;
     
   $('btnHome').onclick = home;
-  $('btnReplay').onclick = () => go(Q.length);
+  $('btnReplay').onclick = () => go(Q.length, fishingEnabled);
 }
 
 signInAnonymously(auth)
