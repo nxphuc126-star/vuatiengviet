@@ -33,14 +33,11 @@
   
   #main-content { display: none; }
   
-  /* CSS cho phần Upload File */
   .upload-section { background: #fff; border: 2px dashed #c2410c; border-radius: 16px; padding: 20px; text-align: center; max-width: 1100px; margin: 0 auto 20px auto; }
   .upload-section h3 { margin-top: 0; color: #c2410c; }
   .file-status { margin-top: 10px; color: #15803d; font-weight: bold; display: none; }
 
-  /* Nút Xóa trong BXH */
   .btn-del { background: #ef4444; color: white; border: none; border-radius: 4px; padding: 2px 6px; font-size: 0.75rem; cursor: pointer; margin-left: 8px; }
-  /* Nút Cảnh báo trong Giám sát */
   .btn-warn { background: #eab308; color: white; border: none; border-radius: 6px; padding: 4px 8px; font-size: 0.8rem; cursor: pointer; margin-right: 4px; }
 </style>
 </head>
@@ -88,7 +85,6 @@ import { getFirestore, collection, onSnapshot, query, orderBy, limit, doc, delet
   
 import { REAL_HASH_USER, REAL_HASH_PASS } from './auth.js';
 
-// ⚠️ DÙNG CONFIG THẬT CỦA BẠN
 const firebaseConfig = {
   apiKey: "AIzaSyAsT89zdpQwALQ0kmYta7mtwCXaj_yJc8Q",
   authDomain: "vuatiengviet-7a1cb.firebaseapp.com",
@@ -129,7 +125,7 @@ document.getElementById('password').addEventListener('keypress', function(e) {
   if (e.key === 'Enter') window.checkLogin();
 });
 
-// UPLOAD FILE QUA CLOUDINARY
+// UPLOAD FILE QUA CLOUDINARY (ĐÃ SỬA LỖI)
 window.uploadHomework = async function() {
   const fileInput = document.getElementById('fileUpload');
   const file = fileInput.files[0];
@@ -144,19 +140,25 @@ window.uploadHomework = async function() {
     document.getElementById('upload-status').style.display = 'block';
     document.getElementById('upload-status').textContent = "⏳ Đang tải lên Cloudinary...";
     
-    const CLOUDINARY_CLOUD_NAME = "w7xmzgco"; // ⚠️ THAY BẰNG CLOUD NAME CỦA BẠN
-    const CLOUDINARY_UPLOAD_PRESET = "btvn_files"; // Tên preset bạn đã tạo
+    const CLOUDINARY_CLOUD_NAME = "w7xmzgco"; // ⚠️ ĐẢM BẢO ĐÚNG CLOUD NAME CỦA BẠN
+    const CLOUDINARY_UPLOAD_PRESET = "btvn_files"; // ⚠️ ĐẢM BẢO ĐÚNG TÊN PRESET (UNSIGNED)
 
     const formData = new FormData();
     formData.append('file', file);
     formData.append('upload_preset', CLOUDINARY_UPLOAD_PRESET);
 
-    const res = await fetch(`https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/auto/upload`, {
+    // ĐÃ SỬA THÀNH /raw/upload ĐỂ HỖ TRỢ FILE WORD
+    const res = await fetch(`https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/raw/upload`, {
       method: 'POST', body: formData
     });
     
     const data = await res.json();
-    if (!data.secure_url) throw new Error("Upload thất bại");
+    
+    // Bắt lỗi chi tiết từ Cloudinary
+    if (data.error) {
+        throw new Error(data.error.message); 
+    }
+    if (!data.secure_url) throw new Error("Không lấy được link file từ Cloudinary");
 
     await setDoc(doc(db, "settings", "homework"), {
       fileName: file.name, url: data.secure_url, timestamp: new Date()
@@ -170,7 +172,6 @@ window.uploadHomework = async function() {
   }
 };
 
-// NÚT ĐUỔI HỌC SINH
 window.kickStudent = async function(sessionId) {
   if (confirm("Bạn có chắc chắn muốn đuổi học sinh này ra khỏi phòng thi?")) {
     try { await updateDoc(doc(db, "active_sessions", sessionId), { kicked: true }); } 
@@ -178,7 +179,6 @@ window.kickStudent = async function(sessionId) {
   }
 };
 
-// NÚT CẢNH BÁO HỌC SINH
 window.warnStudent = async function(sessionId, currentScore) {
   if (confirm("Cảnh báo và TRỪ NỬA SỐ ĐIỂM của học sinh này?")) {
     try {
@@ -186,28 +186,33 @@ window.warnStudent = async function(sessionId, currentScore) {
       await updateDoc(doc(db, "active_sessions", sessionId), {
         warningMessage: `Giáo viên đã cảnh cáo bạn vì vi phạm! Bạn bị trừ nửa số điểm (Còn ${newScore} điểm).`,
         warningTimestamp: Date.now(),
-        score: newScore // Trừ điểm ngay lập tức
+        score: newScore
       });
     } catch (e) { alert("Lỗi: " + e.message); }
   }
 };
 
-// NÚT XÓA HỌC SINH KHỎI BXH
 window.deleteFromBXH = async function(studentName) {
   if (confirm(`Bạn có chắc chắn muốn XÓA ${studentName} khỏi Bảng Xếp Hạng?`)) {
     try {
-      // Tìm document có tên tương ứng để xóa
-      const q = query(collection(db, "leaderboard"), where("name", "==", studentName));
+      const q = query(collection(db, "leaderboard"));
       const snap = await getDocs(q);
+      
+      let found = false;
       snap.forEach(async (d) => {
-        await deleteDoc(doc(db, "leaderboard", d.id));
+        if (d.data().name === studentName) {
+          await deleteDoc(doc(db, "leaderboard", d.id));
+          found = true;
+        }
       });
+      
+      if (!found) alert("Không tìm thấy học sinh này trên BXH!");
+      
     } catch (e) { alert("Lỗi khi xóa: " + e.message); }
   }
 };
 
 function startRealtimeData() {
-  // 1. LẮNG NGHE TIẾN ĐỘ
   onSnapshot(collection(db, "active_sessions"), (snap) => {
     const now = new Date();
     const rows = [];
@@ -267,7 +272,6 @@ function startRealtimeData() {
     document.getElementById('live-panel').innerHTML = rows.length ? rows.join('') : '<div class="empty">Không có ai đang làm bài.</div>';
   });
 
-  // 2. BẢNG XẾP HẠNG
   const lbQuery = query(collection(db, "leaderboard"), orderBy("score", "desc"), limit(10));
   onSnapshot(lbQuery, (snap) => {
     const rows = []; 
@@ -280,7 +284,6 @@ function startRealtimeData() {
       if (rank === 2) badgeColor = "#94a3b8";
       if (rank === 3) badgeColor = "#b45309";
 
-      // Tên trên BXH đã có sẵn dạng "Huy (7A2)"
       rows.push(`
         <div class="row">
           <div style="display:flex; align-items:center;">
