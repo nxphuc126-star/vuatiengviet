@@ -1,4 +1,5 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
 import { getFirestore, collection, doc, setDoc, addDoc, onSnapshot, query, orderBy, limit, deleteDoc, getDoc }
   from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
@@ -13,6 +14,7 @@ const firebaseConfig = {
 
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
+const auth = getAuth(app);
 
 const $ = id => document.getElementById(id), A = $('app');
 const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
@@ -70,7 +72,7 @@ async function captureScreenAndUpload() {
         const res = await fetch(`https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/image/upload`, { method: 'POST', body: formData });
         const data = await res.json();
         if (data.secure_url) {
-          await setDoc(doc(db, "active_sessions", window.sessionId), { cheatingImageUrl: data.secure_url, lastUpdate: new Date() }, { merge: true });
+          await setDoc(doc(db, "active_sessions", window.sessionId), { ownerUid: auth.currentUser.uid, cheatingImageUrl: data.secure_url, lastUpdate: new Date() }, { merge: true });
         }
       } catch (e) {}
     }, 'image/jpeg', 0.6);
@@ -88,12 +90,7 @@ document.addEventListener("visibilitychange", async () => {
   updateProgress();
 });
 
-window.addEventListener("beforeunload", () => {
-  if (!window.sessionId) return;
-  const payload = JSON.stringify({ status: "offline" });
-  const url = `https://firestore.googleapis.com/v1/projects/vuatiengviet-7a1cb/databases/(default)/documents/active_sessions/${window.sessionId}?updateMask.fieldPaths=status`;
-  navigator.sendBeacon(url, new Blob([payload], { type: 'application/json' }));
-});
+// Phiên không được ghi bằng REST khi unload; trạng thái cũ sẽ tự hết hạn ở màn hình giáo viên.
 
 function listenForKick() {
   onSnapshot(doc(db, "active_sessions", window.sessionId), (docSnap) => {
@@ -146,7 +143,7 @@ async function updateProgress() {
   if (!window.sessionId || isKicked) return;
   try {
     await setDoc(doc(db, "active_sessions", window.sessionId), {
-      studentName: name, currentQuestionIndex: i + 1, totalQuestions: Q.length,
+      ownerUid: auth.currentUser.uid, studentName: name, currentQuestionIndex: i + 1, totalQuestions: Q.length,
       score: sc, lastUpdate: new Date(), status: "playing", cheating: isCheating
     }, { merge: true });
   } catch (e) {}
@@ -154,7 +151,7 @@ async function updateProgress() {
 
 async function saveScore() {
   try {
-    await addDoc(collection(db, "leaderboard"), { name, score: sc, correct: ok, total: Q.length, timestamp: new Date() });
+    await addDoc(collection(db, "leaderboard"), { ownerUid: auth.currentUser.uid, name, score: sc, correct: ok, total: Q.length, timestamp: new Date() });
   } catch (e) {}
 }
 
@@ -400,7 +397,7 @@ async function end() {
   const rk = p>=90?['👑','VUA TIẾNG VIỆT']:p>=75?['🛡️','Hiệp sĩ Ngôn từ']:p>=50?['📚','Học giả Chăm chỉ']:['🌱','Tập sự Tiếng Việt'];
   
   if (window.sessionId) {
-    try { await setDoc(doc(db,"active_sessions",window.sessionId), { status: "finished", score: sc, lastUpdate: new Date() }, { merge: true }); } catch(e){}
+    try { await setDoc(doc(db,"active_sessions",window.sessionId), { ownerUid: auth.currentUser.uid, status: "finished", score: sc, lastUpdate: new Date() }, { merge: true }); } catch(e){}
   }
   await saveScore();
 
@@ -418,4 +415,9 @@ async function end() {
   $('btnReplay').onclick = () => go(Q.length);
 }
 
-home();
+signInAnonymously(auth)
+  .then(() => home())
+  .catch((error) => {
+    console.error("Student authentication failed:", error);
+    A.innerHTML = '<div class="c ctr"><h2>Không thể kết nối an toàn</h2><p>Vui lòng tải lại trang hoặc báo giáo viên kiểm tra cấu hình Firebase Authentication.</p></div>';
+  });
