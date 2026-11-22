@@ -4,40 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Giám sát giáo viên · VUA TIẾNG VIỆT</title>
-<!-- Thư viện PeerJS để Live Stream -->
-<script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
-<style>
-  body { font-family: system-ui, -apple-system, sans-serif; margin: 0; padding: 20px; background: #fff8ec; color: #2b2118; }
-  h1 { color: #c2410c; text-align: center; margin-bottom: 5px; }
-  .subtitle { text-align: center; color: #7a6a58; font-size: 0.9rem; margin-bottom: 20px; }
-  .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; max-width: 1100px; margin: 0 auto; }
-  @media (max-width: 800px) { .grid { grid-template-columns: 1fr; } }
-  .box { background: #fff; border: 2px solid #ecd9bd; border-radius: 16px; padding: 18px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); }
-  .box h2 { margin-top: 0; font-size: 1.2rem; border-bottom: 2px solid #ecd9bd; padding-bottom: 10px; }
-  .row { padding: 12px 0; border-bottom: 1px solid #ecd9bd; display: flex; justify-content: space-between; align-items: center; }
-  .row:last-child { border-bottom: 0; }
-  .nm { font-weight: 700; font-size: 1.05rem; }
-  .meta { color: #7a6a58; font-size: 0.85rem; margin-top: 4px; }
-  .progress-container { width: 140px; }
-  .progress-text { font-size: 0.75rem; color: #7a6a58; text-align: right; margin-bottom: 4px; }
-  .progress { width: 100%; height: 8px; background: #ecd9bd; border-radius: 4px; overflow: hidden; }
-  .progress i { display: block; height: 100%; background: #c2410c; transition: width 0.5s ease; }
-  .badge { display: inline-block; background: #c2410c; color: #fff; border-radius: 20px; padding: 2px 10px; font-size: 0.75rem; font-weight: 700; margin-right: 5px; }
-  .empty { color: #7a6a58; font-style: italic; text-align: center; padding: 20px 0; }
-  
-  #login-screen { display: flex; justify-content: center; align-items: center; height: 80vh; }
-  .login-box { background: #fff; border: 2px solid #ecd9bd; border-radius: 16px; padding: 30px; width: 100%; max-width: 400px; text-align: center; box-shadow: 0 10px 15px rgba(0,0,0,0.1); }
-  .login-box h2 { color: #c2410c; margin-top: 0; }
-  .login-box input { width: 90%; padding: 12px; margin: 10px 0; border: 2px solid #ecd9bd; border-radius: 8px; font-size: 1rem; }
-  .login-box button { background: #c2410c; color: #fff; border: 0; border-radius: 8px; padding: 12px 20px; font-size: 1rem; font-weight: bold; cursor: pointer; width: 100%; margin-top: 10px; }
-  .login-box button:hover { background: #9a3412; }
-  .login-box button:disabled { opacity: .65; cursor: wait; }
-  .error-msg { color: #b91c1c; font-size: 0.9rem; margin-top: 10px; display: none; }
-  
-  #main-content { display: none; }
-  .btn-del { background: #ef4444; color: white; border: none; border-radius: 4px; padding: 2px 6px; font-size: 0.75rem; cursor: pointer; margin-left: 8px; }
-  .btn-warn { background: #eab308; color: white; border: none; border-radius: 6px; padding: 4px 8px; font-size: 0.8rem; cursor: pointer; margin-right: 4px; }
-</style>
+<link rel="stylesheet" href="/assets/css/teacher.css">
 </head>
 <body>
 
@@ -56,14 +23,6 @@
   <h1>👩‍🏫 Quản Lý Lớp Học</h1>
   <p class="subtitle">Cập nhật real-time · Theo dõi tiến độ học sinh</p>
 
-  <!-- KHU VỰC LIVE STREAM -->
-  <div style="text-align: center; margin-bottom: 20px;">
-    <button id="btnShareScreen" style="background: #0284c7; color: white; border: none; padding: 12px 24px; border-radius: 10px; font-weight: bold; cursor: pointer; font-size: 1rem;">
-      🖥️ Bắt đầu chia sẻ màn hình cho HS
-    </button>
-    <p id="share-status" style="color: #15803d; font-weight: bold; display: none; margin-top: 8px;">✅ Đang phát Live Stream cho học sinh...</p>
-  </div>
-
   <div class="grid">
     <div class="box">
       <h2>📡 Đang làm bài</h2>
@@ -78,7 +37,7 @@
 
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-import { getFirestore, collection, onSnapshot, query, orderBy, limit, doc, deleteDoc, updateDoc, getDocs, setDoc }
+import { getFirestore, collection, onSnapshot, query, orderBy, limit, doc, deleteDoc, updateDoc, getDocs }
   from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
   
 import { getAuth, signInWithCustomToken, signOut } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
@@ -138,52 +97,6 @@ window.checkLogin = async function() {
 document.getElementById('password').addEventListener('keypress', function(e) {
   if (e.key === 'Enter') window.checkLogin();
 });
-
-// --- BẮT ĐẦU CODE LIVE STREAM (WEBRTC) ---
-let peer = null;
-let teacherStream = null;
-
-document.getElementById('btnShareScreen').onclick = async function() {
-  try {
-    // 1. Xin quyền chia sẻ màn hình
-    teacherStream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: true });
-    document.getElementById('share-status').style.display = 'block';
-    this.style.display = 'none';
-
-    // 2. Khởi tạo Peer (Máy chủ tín hiệu WebRTC miễn phí)
-    const peerId = "teacher-" + Date.now(); // ID phòng ngẫu nhiên
-    peer = new Peer(peerId, {
-      config: {'iceServers': [{ 'urls': 'stun:stun.l.google.com:19302' }]}
-    });
-
-    // 3. Khi Peer kết nối thành công, lưu ID lên Firebase để HS tìm thấy
-    peer.on('open', async (id) => {
-      await setDoc(doc(db, "settings", "teacher_screen"), {
-        peerId: id,
-        isSharing: true,
-        timestamp: Date.now()
-      });
-      console.log("Đã lưu phòng Live:", id);
-    });
-
-    // 4. Trả lời khi có học sinh gọi đến
-    peer.on('call', (call) => {
-      call.answer(teacherStream); 
-    });
-
-    // 5. Tự động dọn dẹp khi cô bấm nút "Stop Sharing" của trình duyệt
-    teacherStream.getVideoTracks()[0].onended = async () => {
-      if (peer) peer.destroy();
-      document.getElementById('share-status').style.display = 'none';
-      document.getElementById('btnShareScreen').style.display = 'inline-block';
-      await setDoc(doc(db, "settings", "teacher_screen"), { isSharing: false }, { merge: true });
-    };
-
-  } catch (err) {
-    alert("Bạn đã hủy chia sẻ màn hình.");
-  }
-};
-// --- KẾT THÚC CODE LIVE STREAM ---
 
 window.kickStudent = async function(sessionId) {
   if (confirm("Bạn có chắc chắn muốn đuổi học sinh này ra khỏi phòng thi?")) {
