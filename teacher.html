@@ -125,7 +125,7 @@ document.getElementById('password').addEventListener('keypress', function(e) {
   if (e.key === 'Enter') window.checkLogin();
 });
 
-// UPLOAD FILE QUA CLOUDINARY (ĐÃ SỬA LỖI)
+// UPLOAD FILE QUA CLOUDINARY (BẢN CHUẨN)
 window.uploadHomework = async function() {
   const fileInput = document.getElementById('fileUpload');
   const file = fileInput.files[0];
@@ -140,21 +140,21 @@ window.uploadHomework = async function() {
     document.getElementById('upload-status').style.display = 'block';
     document.getElementById('upload-status').textContent = "⏳ Đang tải lên Cloudinary...";
     
-    const CLOUDINARY_CLOUD_NAME = "w7xmzgco"; // ⚠️ ĐẢM BẢO ĐÚNG CLOUD NAME CỦA BẠN
-    const CLOUDINARY_UPLOAD_PRESET = "btvn_files"; // ⚠️ ĐẢM BẢO ĐÚNG TÊN PRESET (UNSIGNED)
+    const CLOUDINARY_CLOUD_NAME = "w7xmzgco"; // ⚠️ Đảm bảo đúng Cloud Name
+    const CLOUDINARY_UPLOAD_PRESET = "btvn_files"; // ⚠️ Đảm bảo đúng Preset (Unsigned)
 
     const formData = new FormData();
     formData.append('file', file);
     formData.append('upload_preset', CLOUDINARY_UPLOAD_PRESET);
 
-    // ĐÃ SỬA THÀNH /raw/upload ĐỂ HỖ TRỢ FILE WORD
-    const res = await fetch(`https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/raw/upload`, {
+    // Sử dụng /auto/upload để Cloudinary tự nhận diện file Word
+    const res = await fetch(`https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/auto/upload`, {
       method: 'POST', body: formData
     });
     
     const data = await res.json();
     
-    // Bắt lỗi chi tiết từ Cloudinary
+    // Bắt lỗi chi tiết
     if (data.error) {
         throw new Error(data.error.message); 
     }
@@ -197,7 +197,6 @@ window.deleteFromBXH = async function(studentName) {
     try {
       const q = query(collection(db, "leaderboard"));
       const snap = await getDocs(q);
-      
       let found = false;
       snap.forEach(async (d) => {
         if (d.data().name === studentName) {
@@ -205,9 +204,7 @@ window.deleteFromBXH = async function(studentName) {
           found = true;
         }
       });
-      
       if (!found) alert("Không tìm thấy học sinh này trên BXH!");
-      
     } catch (e) { alert("Lỗi khi xóa: " + e.message); }
   }
 };
