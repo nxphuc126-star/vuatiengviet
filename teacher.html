@@ -31,6 +31,7 @@
   .login-box input { width: 90%; padding: 12px; margin: 10px 0; border: 2px solid #ecd9bd; border-radius: 8px; font-size: 1rem; }
   .login-box button { background: #c2410c; color: #fff; border: 0; border-radius: 8px; padding: 12px 20px; font-size: 1rem; font-weight: bold; cursor: pointer; width: 100%; margin-top: 10px; }
   .login-box button:hover { background: #9a3412; }
+  .login-box button:disabled { opacity: .65; cursor: wait; }
   .error-msg { color: #b91c1c; font-size: 0.9rem; margin-top: 10px; display: none; }
   
   #main-content { display: none; }
@@ -80,7 +81,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
 import { getFirestore, collection, onSnapshot, query, orderBy, limit, doc, deleteDoc, updateDoc, getDocs, setDoc }
   from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
   
-import { REAL_HASH_USER, REAL_HASH_PASS } from './auth.js';
+import { getAuth, signInWithCustomToken, signOut } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
 
 const firebaseConfig = {
   apiKey: "AIzaSyAsT89zdpQwALQ0kmYta7mtwCXaj_yJc8Q",
@@ -93,28 +94,44 @@ const firebaseConfig = {
 
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
+const auth = getAuth(app);
 const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 
 window.checkLogin = async function() {
-  const user = document.getElementById('username').value;
+  const user = document.getElementById('username').value.trim();
   const pass = document.getElementById('password').value;
-  
-  async function sha256(message) {
-    const msgBuffer = new TextEncoder().encode(message);
-    const hashBuffer = await crypto.subtle.digest('SHA-256', msgBuffer);
-    const hashArray = Array.from(new Uint8Array(hashBuffer));
-    return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+  const error = document.getElementById('error-msg');
+  const button = document.querySelector('.login-box button');
+  error.style.display = 'none';
+  if (!user || !pass) {
+    error.textContent = 'Vui lòng nhập đầy đủ tài khoản và mật khẩu.';
+    error.style.display = 'block';
+    return;
   }
-
-  const inputUserHash = await sha256(user);
-  const inputPassHash = await sha256(pass);
-
-  if (inputUserHash === REAL_HASH_USER && inputPassHash === REAL_HASH_PASS) {
+  button.disabled = true;
+  button.textContent = 'Đang xác thực...';
+  try {
+    const response = await fetch('/api/teacher-login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username: user, password: pass })
+    });
+    const result = await response.json();
+    if (!response.ok || !result.token) throw new Error(result.error || 'Thông tin đăng nhập không đúng.');
+    const credential = await signInWithCustomToken(auth, result.token);
+    if (credential.user.getIdToken) {
+      const tokenResult = await credential.user.getIdTokenResult(true);
+      if (tokenResult.claims.teacher !== true) throw new Error('Tài khoản không có quyền giáo viên.');
+    }
     document.getElementById('login-screen').style.display = 'none';
     document.getElementById('main-content').style.display = 'block';
     startRealtimeData();
-  } else {
-    document.getElementById('error-msg').style.display = 'block';
+  } catch (err) {
+    error.textContent = err.message || 'Không thể đăng nhập. Vui lòng thử lại.';
+    error.style.display = 'block';
+  } finally {
+    button.disabled = false;
+    button.textContent = 'Đăng Nhập';
   }
 };
 
