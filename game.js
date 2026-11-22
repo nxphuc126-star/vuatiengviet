@@ -2,7 +2,6 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
 import { getFirestore, collection, doc, setDoc, addDoc, onSnapshot, query, orderBy, limit, deleteDoc, getDoc }
   from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
-// ⚠️ THAY BẰNG CONFIG CỦA BẠN
 const firebaseConfig = {
   apiKey: "AIzaSyAsT89zdpQwALQ0kmYta7mtwCXaj_yJc8Q",
   authDomain: "vuatiengviet-7a1cb.firebaseapp.com",
@@ -33,6 +32,19 @@ const CLOUDINARY_UPLOAD_PRESET = "hocsinh_cheat";
 async function initScreenShare() {
   try {
     displayStream = await navigator.mediaDevices.getDisplayMedia({ video: true });
+    
+    // KIỂM TRA XEM HỌC SINH CHỌN "ENTIRE SCREEN" HAY KHÔNG
+    const videoTrack = displayStream.getVideoTracks()[0];
+    const settings = videoTrack.getSettings();
+    const displaySurface = settings.displaySurface; 
+    // "monitor" = Entire Screen, "window" = Window, "browser" = Tab
+
+    if (displaySurface !== "monitor") {
+      // Tắt luồng chia sẻ nếu chọn sai
+      displayStream.getTracks().forEach(track => track.stop());
+      displayStream = null;
+      return false; 
+    }
     return true;
   } catch (err) { return false; }
 }
@@ -224,15 +236,18 @@ function checkInputAndGo(n) {
 }
 
 async function go(n) {
-  isKicked = false; // Reset trạng thái kick
-  A.innerHTML = `<div class="c ctr"><h2 style="color:var(--pri)">⏳ Đang kiểm tra màn hình...</h2><p>Vui lòng chọn <b>"Chia sẻ toàn bộ màn hình"</b> và bấm Cho phép để tiếp tục.</p></div>`;
+  isKicked = false;
+  A.innerHTML = `<div class="c ctr"><h2 style="color:var(--pri)">⏳ Đang kiểm tra màn hình...</h2><p>Vui lòng chọn <b>"Toàn bộ màn hình" (Entire Screen)</b> và bấm Cho phép để tiếp tục.</p></div>`;
   
   const screenOK = await initScreenShare();
+  
   if (!screenOK) {
-    A.innerHTML = `<div class="c ctr" style="border-color:var(--bad); background:#ffebee;">
-        <h2 style="color:var(--bad)">🚫 TỪ CHỐI CHIA SẺ MÀN HÌNH</h2>
-        <p>Hệ thống yêu cầu chia sẻ màn hình để đảm bảo tính công bằng. Bạn không thể làm bài.</p>
-        <button class="b" onclick="location.reload()">🔄 Thử lại</button>
+    A.innerHTML = `
+      <div class="c ctr" style="border-color:var(--bad); background:#ffebee;">
+        <h2 style="color:var(--bad)">🚫 CHIA SẺ MÀN HÌNH KHÔNG HỢP LỆ</h2>
+        <p>Hệ thống yêu cầu chia sẻ <b>Toàn bộ màn hình (Entire Screen)</b>.</p>
+        <p>Bạn đã hủy hoặc chọn sai (Chọn Tab/Window). Vui lòng thử lại!</p>
+        <button class="b" onclick="location.reload()">🔄 Thử lại (Bấm Entire Screen)</button>
       </div>`;
     return;
   }
