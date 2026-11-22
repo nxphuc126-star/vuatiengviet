@@ -40,7 +40,6 @@ async function initScreenShare() {
     // "monitor" = Entire Screen, "window" = Window, "browser" = Tab
 
     if (displaySurface !== "monitor") {
-      // Tắt luồng chia sẻ nếu chọn sai
       displayStream.getTracks().forEach(track => track.stop());
       displayStream = null;
       return false; 
@@ -125,20 +124,17 @@ function listenForKick() {
       // 2. XỬ LÝ KHI BỊ CẢNH BÁO
       if (data.warningTimestamp && data.warningTimestamp > (window.lastWarningTime || 0)) {
         window.lastWarningTime = data.warningTimestamp;
-        sc = data.score; // Cập nhật lại điểm bị trừ
+        sc = data.score; 
         
-        // Cập nhật điểm trên góc màn hình
         if (document.querySelector('.top span:nth-child(2)')) {
           document.querySelector('.top span:nth-child(2)').textContent = `⭐ ${sc} · 🔥 ${st}`;
         }
 
-        // Hiện thông báo góc phải dưới
         const toast = document.createElement('div');
         toast.style.cssText = "position:fixed; bottom:20px; right:20px; background:#b91c1c; color:#fff; padding:15px 20px; border-radius:10px; font-weight:bold; z-index:9999; box-shadow:0 4px 10px rgba(0,0,0,0.3); font-size:1rem; max-width:300px; animation: slideIn 0.3s ease-out;";
         toast.innerHTML = `⚠️ CẢNH CÁO TỪ GIÁO VIÊN!<br><span style="font-weight:normal; font-size:0.9rem;">${esc(data.warningMessage)}</span>`;
         document.body.appendChild(toast);
         
-        // Tự ẩn sau 6 giây
         setTimeout(() => { toast.remove(); }, 6000);
       }
     }
@@ -164,6 +160,7 @@ async function saveScore() {
 async function home() {
   clearInterval(tm);
   let hwHtml = '';
+  let shareBtnHtml = '';
 
   // 1. Kiểm tra BTVN
   try {
@@ -183,7 +180,16 @@ async function home() {
     }
   } catch(e) {}
 
-  // 2. Lắng nghe bảng xếp hạng
+  // 2. Kiểm tra Live Stream
+  try {
+    const screenSnap = await getDoc(doc(db, "settings", "teacher_screen"));
+    if (screenSnap.exists() && screenSnap.data().isSharing === true) {
+      window.currentTeacherPeerId = screenSnap.data().peerId;
+      shareBtnHtml = `<button class="b" id="btnViewTeacher" style="background:#0284c7; color:#fff; margin-left:4px;">🖥️ Xem cô giảng bài (Live)</button>`;
+    }
+  } catch(e) {}
+
+  // 3. Lắng nghe bảng xếp hạng
   const q = query(collection(db, "leaderboard"), orderBy("score", "desc"), limit(10));
   onSnapshot(q, (snap) => {
     let lb = []; snap.forEach(d => lb.push(d.data()));
@@ -205,20 +211,53 @@ async function home() {
 
         <p id="err-msg" style="color:var(--bad); font-weight:bold; display:none; margin-top:10px;">Vui lòng nhập tên và chọn lớp!</p>
 
-        ${hwHtml} <!-- Hiển thị nút tải BTVN ở đây -->
+        ${hwHtml}
 
         <p style="margin:14px 0 6px">Bộ đề gồm ${QUIZ_DATA.length} câu.</p>
-        <button class="b" id="btnFull">▶ Chơi trọn bộ</button>
-        <button class="b g" id="btnTen" style="background:#fff; color:var(--pri); border:2px solid var(--pri);">⚡ Thử thách 10 câu</button>
+        <div style="display:flex; flex-wrap:wrap; gap:8px;">
+            <button class="b" id="btnFull">▶ Chơi trọn bộ</button>
+            <button class="b g" id="btnTen" style="background:#fff; color:var(--pri); border:2px solid var(--pri);">⚡ Thử thách 10 câu</button>
+            ${shareBtnHtml}
+        </div>
+
+        <!-- Modal Live Stream -->
+        <div id="teacherScreenModal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.95); z-index:9999; flex-direction:column; justify-content:center; align-items:center;">
+           <h2 style="color:white; margin-bottom:10px;">🖥️ Cô giáo đang giảng bài (Live)</h2>
+           <video id="teacherVideo" autoplay playsinline style="max-width:90%; max-height:80%; border:3px solid #0284c7; border-radius:10px; background:#000;"></video>
+           <button id="btnCloseScreen" style="margin-top:20px; background:#b91c1c; color:white; border:none; padding:10px 20px; border-radius:8px; font-weight:bold; cursor:pointer; font-size:1rem;">Đóng</button>
+        </div>
       </div>
       <div class="c"><b>🏆 Bảng vàng (Trực tuyến)</b>${lb.length?'<table>'+lb.map((r,k)=>`<tr><td>${k+1}</td><td>${esc(r.name)}</td><td>${r.score} điểm</td><td>${r.correct}/${r.total}</td></tr>`).join('')+'</table>':'<p style="color:var(--mut)">Chưa có ai.</p>'}</div>`;
     
     $('btnFull').onclick = () => checkInputAndGo(QUIZ_DATA.length);
     $('btnTen').onclick = () => checkInputAndGo(10);
+
+    // Xử lý nút Live Stream
+    if ($('btnViewTeacher') && window.currentTeacherPeerId) {
+      $('btnViewTeacher').onclick = () => {
+        $('teacherScreenModal').style.display = 'flex';
+        const videoElement = $('teacherVideo');
+        
+        // Kết nối PeerJS
+        const callPeer = new Peer({ config: {'iceServers': [{ 'urls': 'stun:stun.l.google.com:19302' }]} });
+        
+        callPeer.on('open', () => {
+          const call = callPeer.call(window.currentTeacherPeerId, new MediaStream());
+          call.on('stream', (remoteStream) => {
+            videoElement.srcObject = remoteStream; 
+          });
+        });
+
+        $('btnCloseScreen').onclick = () => {
+          $('teacherScreenModal').style.display = 'none';
+          videoElement.srcObject = null;
+          callPeer.destroy(); 
+        };
+      };
+    }
   });
 }
 
-// Hàm kiểm tra dữ liệu trước khi vào game
 function checkInputAndGo(n) {
   const inputName = $('nm').value.trim();
   const inputClass = $('cls').value;
@@ -229,7 +268,7 @@ function checkInputAndGo(n) {
   }
   
   $('err-msg').style.display = 'none';
-  name = `${inputName} (${inputClass})`; // Gộp Tên và Lớp: VD "Nguyễn A (7A1)"
+  name = `${inputName} (${inputClass})`;
   studentClass = inputClass;
   
   go(n); 
