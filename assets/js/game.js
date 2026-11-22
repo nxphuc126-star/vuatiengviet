@@ -22,6 +22,8 @@ const norm = s => String(s).toLowerCase().trim().replace(/[.,!?;:"“”()]/g,''
 
 let Q = [], i = 0, sc = 0, st = 0, ok = 0, tl = 25, tm = null, name = '', wrong = [], done = false;
 let studentClass = "";
+let currentView = "home";
+let unsubscribeLeaderboard = null;
 
 // --- CẤU HÌNH CHỤP MÀN HÌNH & GIAN LẬN ---
 let isCheating = false;
@@ -156,7 +158,12 @@ async function saveScore() {
 }
 
 async function home() {
+  currentView = "home";
   clearInterval(tm);
+  if (unsubscribeLeaderboard) {
+    unsubscribeLeaderboard();
+    unsubscribeLeaderboard = null;
+  }
   let hwHtml = '';
 
   // 1. Kiểm tra BTVN
@@ -179,11 +186,11 @@ async function home() {
 
   // 3. Lắng nghe bảng xếp hạng
   const q = query(collection(db, "leaderboard"), orderBy("score", "desc"), limit(10));
-  onSnapshot(q, (snap) => {
+  unsubscribeLeaderboard = onSnapshot(q, (snap) => {
     let lb = []; snap.forEach(d => lb.push(d.data()));
     
-    // Chỉ render lại giao diện nếu đang ở trang chủ (tránh việc bảng xếp hạng cập nhật làm hỏng giao diện đang chơi)
-    if (document.querySelector('.q') || document.querySelector('.big')) return;
+    // Chỉ cập nhật giao diện khi người dùng vẫn đang ở trang chủ.
+    if (currentView !== "home") return;
 
     A.innerHTML = `
       <h1>👑 VUA TIẾNG VIỆT</h1><p class="sub">Ngữ văn 7 · Kết nối tri thức · Tập 1</p>
@@ -237,6 +244,7 @@ function checkInputAndGo(n) {
 }
 
 async function go(n) {
+  currentView = "quiz";
   isKicked = false;
   A.innerHTML = `<div class="c ctr"><h2 style="color:var(--pri)">⏳ Đang kiểm tra màn hình...</h2><p>Vui lòng chọn <b>"Toàn bộ màn hình" (Entire Screen)</b> và bấm Cho phép để tiếp tục.</p></div>`;
   
@@ -353,6 +361,7 @@ function ans(v) {
 }
 
 async function end() {
+  currentView = "result";
   const p = ok/Q.length*100;
   if (displayStream) { displayStream.getTracks().forEach(track => track.stop()); displayStream = null; }
   const rk = p>=90?['👑','VUA TIẾNG VIỆT']:p>=75?['🛡️','Hiệp sĩ Ngôn từ']:p>=50?['📚','Học giả Chăm chỉ']:['🌱','Tập sự Tiếng Việt'];
