@@ -21,7 +21,102 @@ const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;
 const norm = s => String(s).toLowerCase().trim().replace(/[.,!?;:"“”()]/g,'');
 
 let Q = [], i = 0, sc = 0, st = 0, ok = 0, tl = 25, tm = null, name = '', wrong = [], done = false;
-let studentClass = ""; 
+let studentClass = "";
+
+let teacherScreenUnsub = null;
+let teacherInviteTimer = null;
+let teacherViewerPeer = null;
+let invitedTeacherPeerId = null;
+
+function closeTeacherInvite() {
+  if (teacherInviteTimer) clearInterval(teacherInviteTimer);
+  teacherInviteTimer = null;
+  document.getElementById("teacherShareInvite")?.remove();
+}
+
+function closeTeacherViewer() {
+  const modal = document.getElementById("teacherScreenModal");
+  const video = document.getElementById("teacherVideo");
+  if (video) { video.pause(); video.srcObject = null; }
+  modal?.remove();
+  if (teacherViewerPeer) { teacherViewerPeer.destroy(); teacherViewerPeer = null; }
+}
+
+function openTeacherViewer(peerId) {
+  closeTeacherInvite();
+  closeTeacherViewer();
+  const modal = document.createElement("div");
+  modal.id = "teacherScreenModal";
+  modal.style.cssText = "position:fixed;inset:0;background:rgba(0,0,0,.96);z-index:100000;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:12px;box-sizing:border-box;";
+  modal.innerHTML = '<h2 style="color:#fff;text-align:center;margin:0 0 12px">🖥️ Cô giáo đang trình chiếu</h2><video id="teacherVideo" autoplay playsinline controls style="width:96vw;height:78vh;max-width:1400px;object-fit:contain;background:#000;border:2px solid #0284c7;border-radius:10px"></video><p id="teacherStreamStatus" style="color:#fff">Đang kết nối...</p><button id="btnCloseScreen" style="background:#b91c1c;color:#fff;border:0;padding:11px 24px;border-radius:8px;font-weight:bold;cursor:pointer">Đóng</button>';
+  document.body.appendChild(modal);
+  document.getElementById("btnCloseScreen").onclick = closeTeacherViewer;
+
+  teacherViewerPeer = new Peer({ config: { iceServers: [{ urls: "stun:stun.l.google.com:19302" }] } });
+  teacherViewerPeer.on("open", () => {
+    const call = teacherViewerPeer.call(peerId, new MediaStream());
+    if (!call) {
+      const status = document.getElementById("teacherStreamStatus");
+      if (status) status.textContent = "Không thể kết nối. Hãy thử lại sau.";
+      return;
+    }
+    call.on("stream", (remoteStream) => {
+      const video = document.getElementById("teacherVideo");
+      if (video) { video.srcObject = remoteStream; video.play().catch(() => {}); }
+      const status = document.getElementById("teacherStreamStatus");
+      if (status) status.textContent = "Đang xem màn hình cô giáo";
+    });
+    call.on("close", () => {
+      const status = document.getElementById("teacherStreamStatus");
+      if (status) status.textContent = "Buổi chia sẻ đã kết thúc.";
+    });
+    call.on("error", () => {
+      const status = document.getElementById("teacherStreamStatus");
+      if (status) status.textContent = "Lỗi kết nối buổi trình chiếu.";
+    });
+  });
+  teacherViewerPeer.on("error", (err) => {
+    console.error("Teacher screen connection error:", err);
+    const status = document.getElementById("teacherStreamStatus");
+    if (status) status.textContent = "Không thể kết nối màn hình cô giáo.";
+  });
+}
+
+function showTeacherInvite(peerId) {
+  if (!peerId || invitedTeacherPeerId === peerId) return;
+  invitedTeacherPeerId = peerId;
+  closeTeacherInvite();
+  let seconds = 20;
+  const invite = document.createElement("div");
+  invite.id = "teacherShareInvite";
+  invite.style.cssText = "position:fixed;inset:0;background:rgba(0,0,0,.65);z-index:99999;display:flex;align-items:center;justify-content:center;padding:18px;box-sizing:border-box;";
+  invite.innerHTML = '<div style="width:min(420px,100%);background:#fff;border-radius:18px;padding:24px;text-align:center;box-shadow:0 15px 45px rgba(0,0,0,.3)"><div style="font-size:42px">🖥️</div><h2 style="margin:8px 0;color:#0f172a">Cô giáo đang chia sẻ màn hình</h2><p style="color:#334155">Bạn có muốn vào xem bài trình chiếu không?</p><p style="font-weight:bold;color:#0284c7">Lời mời sẽ đóng sau <span id="teacherInviteCountdown">20</span> giây</p><div style="display:flex;gap:12px;margin-top:18px"><button id="teacherInviteYes" style="flex:1;background:#0284c7;color:#fff;border:0;border-radius:9px;padding:12px;font-weight:bold;cursor:pointer">Có, vào xem</button><button id="teacherInviteNo" style="flex:1;background:#64748b;color:#fff;border:0;border-radius:9px;padding:12px;font-weight:bold;cursor:pointer">Không</button></div></div>';
+  document.body.appendChild(invite);
+  document.getElementById("teacherInviteYes").onclick = () => openTeacherViewer(peerId);
+  document.getElementById("teacherInviteNo").onclick = closeTeacherInvite;
+  teacherInviteTimer = setInterval(() => {
+    seconds--;
+    const counter = document.getElementById("teacherInviteCountdown");
+    if (counter) counter.textContent = seconds;
+    if (seconds <= 0) closeTeacherInvite();
+  }, 1000);
+}
+
+function listenForTeacherShare() {
+  if (teacherScreenUnsub) teacherScreenUnsub();
+  teacherScreenUnsub = onSnapshot(doc(db, "settings", "teacher_screen"), (snap) => {
+    if (!snap.exists()) return;
+    const data = snap.data();
+    if (data.isSharing === true && data.peerId) {
+      showTeacherInvite(data.peerId);
+    } else {
+      invitedTeacherPeerId = null;
+      closeTeacherInvite();
+      closeTeacherViewer();
+    }
+  }, (err) => console.error("Teacher screen listener error:", err));
+}
+
 
 // --- CẤU HÌNH CHỤP MÀN HÌNH & GIAN LẬN ---
 let isCheating = false;
@@ -158,7 +253,6 @@ async function saveScore() {
 async function home() {
   clearInterval(tm);
   let hwHtml = '';
-  let shareBtnHtml = '';
 
   // 1. Kiểm tra BTVN
   try {
@@ -178,14 +272,8 @@ async function home() {
     }
   } catch(e) {}
 
-  // 2. Kiểm tra Live Stream
-  try {
-    const screenSnap = await getDoc(doc(db, "settings", "teacher_screen"));
-    if (screenSnap.exists() && screenSnap.data().isSharing === true) {
-      window.currentTeacherPeerId = screenSnap.data().peerId;
-      shareBtnHtml = `<button class="b" id="btnViewTeacher" style="background:#0284c7; color:#fff; margin-left:4px;">🖥️ Xem cô giảng bài (Live)</button>`;
-    }
-  } catch(e) {}
+  // Theo dõi chia sẻ màn hình real-time; học sinh tự chọn Có/Không.
+  listenForTeacherShare();
 
   // 3. Lắng nghe bảng xếp hạng
   const q = query(collection(db, "leaderboard"), orderBy("score", "desc"), limit(10));
@@ -218,44 +306,15 @@ async function home() {
         <div style="display:flex; flex-wrap:wrap; gap:8px;">
             <button class="b" id="btnFull">▶ Chơi trọn bộ</button>
             <button class="b g" id="btnTen" style="background:#fff; color:var(--pri); border:2px solid var(--pri);">⚡ Thử thách 10 câu</button>
-            ${shareBtnHtml}
         </div>
 
-        <!-- Modal Live Stream -->
-        <div id="teacherScreenModal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.95); z-index:9999; flex-direction:column; justify-content:center; align-items:center;">
-           <h2 style="color:white; margin-bottom:10px;">🖥️ Cô giáo đang giảng bài (Live)</h2>
-           <video id="teacherVideo" autoplay playsinline style="max-width:90%; max-height:80%; border:3px solid #0284c7; border-radius:10px; background:#000;"></video>
-           <button id="btnCloseScreen" style="margin-top:20px; background:#b91c1c; color:white; border:none; padding:10px 20px; border-radius:8px; font-weight:bold; cursor:pointer; font-size:1rem;">Đóng</button>
-        </div>
       </div>
       <div class="c"><b>🏆 Bảng vàng (Trực tuyến)</b>${lb.length?'<table>'+lb.map((r,k)=>`<tr><td>${k+1}</td><td>${esc(r.name)}</td><td>${r.score} điểm</td><td>${r.correct}/${r.total}</td></tr>`).join('')+'</table>':'<p style="color:var(--mut)">Chưa có ai.</p>'}</div>`;
     
     $('btnFull').onclick = () => checkInputAndGo(QUIZ_DATA.length);
     $('btnTen').onclick = () => checkInputAndGo(10);
 
-    // Xử lý nút Live Stream (Tách ra ngoài để luôn hoạt động)
-    if ($('btnViewTeacher') && window.currentTeacherPeerId) {
-      $('btnViewTeacher').onclick = () => {
-        $('teacherScreenModal').style.display = 'flex';
-        const videoElement = $('teacherVideo');
-        
-        // Kết nối PeerJS
-        const callPeer = new Peer({ config: {'iceServers': [{ 'urls': 'stun:stun.l.google.com:19302' }]} });
-        
-        callPeer.on('open', () => {
-          const call = callPeer.call(window.currentTeacherPeerId, new MediaStream());
-          call.on('stream', (remoteStream) => {
-            videoElement.srcObject = remoteStream; 
-          });
-        });
 
-        $('btnCloseScreen').onclick = () => {
-          $('teacherScreenModal').style.display = 'none';
-          videoElement.srcObject = null;
-          callPeer.destroy(); 
-        };
-      };
-    }
   });
 }
 
