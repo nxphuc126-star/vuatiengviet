@@ -25,72 +25,8 @@ let studentClass = "";
 let currentView = "home";
 let unsubscribeLeaderboard = null;
 
-// --- CẤU HÌNH CHỤP MÀN HÌNH & GIAN LẬN ---
 let isCheating = false;
-let displayStream = null;
 let isKicked = false;
-
-const CLOUDINARY_CLOUD_NAME = "w7xmgzco"; // ⚠️ ĐIỀN CLOUD NAME CỦA BẠN
-const CLOUDINARY_UPLOAD_PRESET = "hocsinh_cheat";
-
-async function initScreenShare() {
-  try {
-    displayStream = await navigator.mediaDevices.getDisplayMedia({ video: true });
-    
-    // KIỂM TRA XEM HỌC SINH CHỌN "ENTIRE SCREEN" HAY KHÔNG
-    const videoTrack = displayStream.getVideoTracks()[0];
-    const settings = videoTrack.getSettings();
-    const displaySurface = settings.displaySurface; 
-    // "monitor" = Entire Screen, "window" = Window, "browser" = Tab
-
-    if (displaySurface !== "monitor") {
-      displayStream.getTracks().forEach(track => track.stop());
-      displayStream = null;
-      return false; 
-    }
-    return true;
-  } catch (err) { return false; }
-}
-
-async function captureScreenAndUpload() {
-  if (!displayStream || isKicked) return;
-  const videoTrack = displayStream.getVideoTracks()[0];
-  const imageCapture = new ImageCapture(videoTrack);
-  
-  try {
-    const bitmap = await imageCapture.grabFrame();
-    const canvas = document.createElement('canvas');
-    canvas.width = 480; 
-    canvas.height = (480 / bitmap.width) * bitmap.height;
-    canvas.getContext('2d').drawImage(bitmap, 0, 0, canvas.width, canvas.height);
-    
-    canvas.toBlob(async (blob) => {
-      if (!blob) return;
-      const formData = new FormData();
-      formData.append('file', blob);
-      formData.append('upload_preset', CLOUDINARY_UPLOAD_PRESET);
-      
-      try {
-        const res = await fetch(`https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/image/upload`, { method: 'POST', body: formData });
-        const data = await res.json();
-        if (data.secure_url) {
-          await setDoc(doc(db, "active_sessions", window.sessionId), { ownerUid: auth.currentUser.uid, cheatingImageUrl: data.secure_url, lastUpdate: new Date() }, { merge: true });
-        }
-      } catch (e) {}
-    }, 'image/jpeg', 0.6);
-  } catch (err) {}
-}
-
-document.addEventListener("visibilitychange", async () => {
-  if (!window.sessionId || isKicked) return;
-  if (document.visibilityState === "hidden") {
-    isCheating = true;
-    await captureScreenAndUpload(); 
-  } else {
-    isCheating = false;
-  }
-  updateProgress();
-});
 
 // Phiên không được ghi bằng REST khi unload; trạng thái cũ sẽ tự hết hạn ở màn hình giáo viên.
 
@@ -103,7 +39,6 @@ function listenForKick() {
       if (data.kicked === true && !isKicked) {
         isKicked = true;
         clearInterval(tm);
-        if (displayStream) { displayStream.getTracks().forEach(track => track.stop()); displayStream = null; }
         deleteDoc(doc(db, "active_sessions", window.sessionId));
 
         A.innerHTML = `
@@ -244,29 +179,12 @@ function checkInputAndGo(n) {
 }
 
 async function go(n) {
-  currentView = "quiz";
   isKicked = false;
-  A.innerHTML = `<div class="c ctr"><h2 style="color:var(--pri)">⏳ Đang kiểm tra màn hình...</h2><p>Vui lòng chọn <b>"Toàn bộ màn hình" (Entire Screen)</b> và bấm Cho phép để tiếp tục.</p></div>`;
-  
-  const screenOK = await initScreenShare();
-  
-  if (!screenOK) {
-    A.innerHTML = `
-      <div class="c ctr" style="border-color:var(--bad); background:#ffebee;">
-        <h2 style="color:var(--bad)">🚫 CHIA SẺ MÀN HÌNH KHÔNG HỢP LỆ</h2>
-        <p>Hệ thống yêu cầu chia sẻ <b>Toàn bộ màn hình (Entire Screen)</b>.</p>
-        <p>Bạn đã hủy hoặc chọn sai (Chọn Tab/Window). Vui lòng thử lại!</p>
-        <button class="b" onclick="location.reload()">🔄 Thử lại (Bấm Entire Screen)</button>
-      </div>`;
-    return;
-  }
-
-  window.sessionId = "s_" + (crypto.randomUUID ? crypto.randomUUID() : Date.now() + "_" + Math.random().toString(36).slice(2));
-  isCheating = false;
   Q = [...QUIZ_DATA].sort(() => Math.random() - 0.5).slice(0, Math.min(n, QUIZ_DATA.length));
   i = 0; sc = 0; st = 0; ok = 0; wrong = [];
-  
-  listenForKick(); 
+  isCheating = false;
+  window.sessionId = "s_" + (crypto.randomUUID ? crypto.randomUUID() : Date.now() + "_" + Math.random().toString(36).slice(2));
+  listenForKick();
   show();
 }
 
@@ -357,13 +275,44 @@ function ans(v) {
     </div>
     <button class="b" style="margin-top:10px" id="btnNext">${i+1<Q.length?'Câu tiếp theo ➜':'Xem kết quả 🏁'}</button>`;
     
-  $('btnNext').onclick = () => { i++; show(); };
+  $('btnNext').onclick = () => { i++; fishingRound(); };
+}
+
+function fishingRound() {
+  clearInterval(tm);
+  const fish = [
+    {name:"Cá rô", emoji:"🐟", points:20, rarity:"Thường"},
+    {name:"Cá chép", emoji:"🐠", points:40, rarity:"Khá hiếm"},
+    {name:"Cá vàng", emoji:"🐡", points:60, rarity:"Hiếm"},
+    {name:"Cá kiếm", emoji:"🦈", points:100, rarity:"Siêu hiếm"},
+    {name:"Cá thần tiên", emoji:"🐬", points:150, rarity:"Huyền thoại"}
+  ];
+  A.innerHTML = `
+    <div class="top"><span>🎣 Vòng câu cá</span><span>⭐ ${sc} điểm</span><span>${i}/${Q.length}</span></div>
+    <div class="c ctr" style="background:linear-gradient(180deg,#dff6ff,#b9e7f5);color:#123b55;border:2px solid #75c8e8;min-height:300px;display:flex;flex-direction:column;align-items:center;justify-content:center">
+      <div style="font-size:3rem">🌊 🎣 🌊</div>
+      <h2 style="color:#075985">Thả cần câu cá!</h2>
+      <p>Mỗi câu trả lời xong, bạn được một lượt câu cá.</p>
+      <button class="b" id="btnFish" style="background:#0284c7;color:white;font-size:1.1rem;padding:14px 28px">🎣 CÂU CÁ</button>
+      <p id="fishHint">Nhấn nút để khám phá phần thưởng.</p>
+    </div>`;
+  $('btnFish').onclick = () => {
+    const caught = fish[Math.floor(Math.random() * fish.length)];
+    sc += caught.points;
+    $('btnFish').disabled = true;
+    $('btnFish').textContent = 'Đã câu được cá!';
+    $('fishHint').innerHTML = `<div style="font-size:4rem">${caught.emoji}</div><h2 style="color:#075985">${caught.name}</h2><b>${caught.rarity} · +${caught.points} điểm</b><p>Tổng điểm: <b>${sc}</b></p><button class="b" id="btnContinue">Câu tiếp theo ➜</button>`;
+    updateProgress();
+    $('btnContinue').onclick = () => {
+      if (i >= Q.length) end();
+      else show();
+    };
+  };
 }
 
 async function end() {
   currentView = "result";
   const p = ok/Q.length*100;
-  if (displayStream) { displayStream.getTracks().forEach(track => track.stop()); displayStream = null; }
   const rk = p>=90?['👑','VUA TIẾNG VIỆT']:p>=75?['🛡️','Hiệp sĩ Ngôn từ']:p>=50?['📚','Học giả Chăm chỉ']:['🌱','Tập sự Tiếng Việt'];
   
   if (window.sessionId) {
