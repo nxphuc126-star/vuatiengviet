@@ -49,6 +49,6 @@ Rules hiện tại ngăn học sinh sửa/xóa bản ghi leaderboard của ngư�
 
 Do đó **chống sửa điểm chưa hoàn tất**. Để bảo vệ điểm thật sự, cần chuyển ngân hàng câu hỏi/đáp án và xác minh từng câu sang backend, rồi để backend tự ghi leaderboard bằng Firebase Admin SDK. Không được cấp quyền client tự ghi điểm cuối cùng nếu cần chống gian lận.
 
-## 5. Quyền riêng tư chia sẻ màn hình
+## 5. Quyền riêng tư và giám sát học sinh
 
-Chức năng chia sẻ màn hình hiện tại có thể chụp ảnh khi tab bị ẩn và tải lên Cloudinary. Cần thông báo rõ cho học sinh/phụ huynh, chỉ thu thập khi được cho phép, giới hạn quyền truy cập và thời gian lưu ảnh. Rules Firestore không thay thế quyền riêng tư của Cloudinary.
+Chức năng phát trực tiếp màn hình giáo viên đã được gỡ bỏ. Hệ thống vẫn có cơ chế ghi nhận khi học sinh chuyển tab và có thể chụp ảnh màn hình rồi tải lên Cloudinary theo cấu hình hiện tại. Cần thông báo rõ cho học sinh/phụ huynh, chỉ thu thập khi được cho phép, giới hạn quyền truy cập và thời gian lưu ảnh. Firestore Rules không thay thế quyền riêng tư của Cloudinary.
