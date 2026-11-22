@@ -193,14 +193,12 @@ window.deleteFromBXH = async function(studentName) {
     try {
       const q = query(collection(db, "leaderboard"));
       const snap = await getDocs(q);
-      let found = false;
-      snap.forEach(async (d) => {
-        if (d.data().name === studentName) {
-          await deleteDoc(doc(db, "leaderboard", d.id));
-          found = true;
-        }
-      });
-      if (!found) alert("Không tìm thấy học sinh này trên BXH!");
+      const matches = snap.docs.filter(d => d.data().name === studentName);
+      if (!matches.length) {
+        alert("Không tìm thấy học sinh này trên BXH!");
+        return;
+      }
+      await Promise.all(matches.map(d => deleteDoc(doc(db, "leaderboard", d.id))));
     } catch (e) { alert("Lỗi khi xóa: " + e.message); }
   }
 };
