@@ -104,6 +104,7 @@ function listenForKick() {
       if (data.kicked === true && !isKicked) {
         isKicked = true;
         clearInterval(tm);
+        if (displayStream) { displayStream.getTracks().forEach(track => track.stop()); displayStream = null; }
         deleteDoc(doc(db, "active_sessions", window.sessionId));
 
         A.innerHTML = `
@@ -395,6 +396,7 @@ function ans(v) {
 
 async function end() {
   const p = ok/Q.length*100;
+  if (displayStream) { displayStream.getTracks().forEach(track => track.stop()); displayStream = null; }
   const rk = p>=90?['👑','VUA TIẾNG VIỆT']:p>=75?['🛡️','Hiệp sĩ Ngôn từ']:p>=50?['📚','Học giả Chăm chỉ']:['🌱','Tập sự Tiếng Việt'];
   
   if (window.sessionId) {
