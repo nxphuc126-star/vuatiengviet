@@ -194,6 +194,9 @@ async function home() {
   onSnapshot(q, (snap) => {
     let lb = []; snap.forEach(d => lb.push(d.data()));
     
+    // Chỉ render lại giao diện nếu đang ở trang chủ (tránh việc bảng xếp hạng cập nhật làm hỏng giao diện đang chơi)
+    if (document.querySelector('.q') || document.querySelector('.big')) return;
+
     A.innerHTML = `
       <h1>👑 VUA TIẾNG VIỆT</h1><p class="sub">Ngữ văn 7 · Kết nối tri thức · Tập 1</p>
       <div class="c">
@@ -232,7 +235,7 @@ async function home() {
     $('btnFull').onclick = () => checkInputAndGo(QUIZ_DATA.length);
     $('btnTen').onclick = () => checkInputAndGo(10);
 
-    // Xử lý nút Live Stream
+    // Xử lý nút Live Stream (Tách ra ngoài để luôn hoạt động)
     if ($('btnViewTeacher') && window.currentTeacherPeerId) {
       $('btnViewTeacher').onclick = () => {
         $('teacherScreenModal').style.display = 'flex';
