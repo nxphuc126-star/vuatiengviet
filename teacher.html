@@ -4,6 +4,8 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Giám sát giáo viên · VUA TIẾNG VIỆT</title>
+<!-- Thư viện PeerJS để Live Stream -->
+<script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
 <style>
   body { font-family: system-ui, -apple-system, sans-serif; margin: 0; padding: 20px; background: #fff8ec; color: #2b2118; }
   h1 { color: #c2410c; text-align: center; margin-bottom: 5px; }
@@ -32,7 +34,6 @@
   .error-msg { color: #b91c1c; font-size: 0.9rem; margin-top: 10px; display: none; }
   
   #main-content { display: none; }
-
   .btn-del { background: #ef4444; color: white; border: none; border-radius: 4px; padding: 2px 6px; font-size: 0.75rem; cursor: pointer; margin-left: 8px; }
   .btn-warn { background: #eab308; color: white; border: none; border-radius: 6px; padding: 4px 8px; font-size: 0.8rem; cursor: pointer; margin-right: 4px; }
 </style>
@@ -54,6 +55,14 @@
   <h1>👩‍🏫 Quản Lý Lớp Học</h1>
   <p class="subtitle">Cập nhật real-time · Theo dõi tiến độ học sinh</p>
 
+  <!-- KHU VỰC LIVE STREAM -->
+  <div style="text-align: center; margin-bottom: 20px;">
+    <button id="btnShareScreen" style="background: #0284c7; color: white; border: none; padding: 12px 24px; border-radius: 10px; font-weight: bold; cursor: pointer; font-size: 1rem;">
+      🖥️ Bắt đầu chia sẻ màn hình cho HS
+    </button>
+    <p id="share-status" style="color: #15803d; font-weight: bold; display: none; margin-top: 8px;">✅ Đang phát Live Stream cho học sinh...</p>
+  </div>
+
   <div class="grid">
     <div class="box">
       <h2>📡 Đang làm bài</h2>
@@ -68,7 +77,7 @@
 
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-import { getFirestore, collection, onSnapshot, query, orderBy, limit, doc, deleteDoc, updateDoc, getDocs }
+import { getFirestore, collection, onSnapshot, query, orderBy, limit, doc, deleteDoc, updateDoc, getDocs, setDoc }
   from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
   
 import { REAL_HASH_USER, REAL_HASH_PASS } from './auth.js';
@@ -112,6 +121,51 @@ window.checkLogin = async function() {
 document.getElementById('password').addEventListener('keypress', function(e) {
   if (e.key === 'Enter') window.checkLogin();
 });
+
+// --- BẮT ĐẦU CODE LIVE STREAM (WEBRTC) ---
+let peer = null;
+let teacherStream = null;
+
+document.getElementById('btnShareScreen').onclick = async function() {
+  try {
+    // 1. Xin quyền chia sẻ màn hình
+    teacherStream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: true });
+    document.getElementById('share-status').style.display = 'block';
+    this.style.display = 'none';
+
+    // 2. Khởi tạo Peer (Máy chủ tín hiệu WebRTC miễn phí)
+    const peerId = "teacher-" + Date.now(); // ID phòng ngẫu nhiên
+    peer = new Peer(peerId, {
+      config: {'iceServers': [{ 'urls': 'stun:stun.l.google.com:19302' }]}
+    });
+
+    // 3. Khi Peer kết nối thành công, lưu ID lên Firebase để HS tìm thấy
+    peer.on('open', async (id) => {
+      await setDoc(doc(db, "settings", "teacher_screen"), {
+        peerId: id,
+        isSharing: true,
+        timestamp: Date.now()
+      });
+    });
+
+    // 4. Trả lời khi có học sinh gọi đến
+    peer.on('call', (call) => {
+      call.answer(teacherStream); 
+    });
+
+    // 5. Tự động dọn dẹp khi cô bấm nút "Stop Sharing" của trình duyệt
+    teacherStream.getVideoTracks()[0].onended = async () => {
+      if (peer) peer.destroy();
+      document.getElementById('share-status').style.display = 'none';
+      document.getElementById('btnShareScreen').style.display = 'inline-block';
+      await setDoc(doc(db, "settings", "teacher_screen"), { isSharing: false }, { merge: true });
+    };
+
+  } catch (err) {
+    alert("Bạn đã hủy chia sẻ màn hình.");
+  }
+};
+// --- KẾT THÚC CODE LIVE STREAM ---
 
 window.kickStudent = async function(sessionId) {
   if (confirm("Bạn có chắc chắn muốn đuổi học sinh này ra khỏi phòng thi?")) {
