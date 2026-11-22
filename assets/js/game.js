@@ -21,76 +21,13 @@ const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;
 const norm = s => String(s).toLowerCase().trim().replace(/[.,!?;:"“”()]/g,'');
 
 let Q = [], i = 0, sc = 0, st = 0, ok = 0, tl = 25, tm = null, name = '', wrong = [], done = false;
+let fishingEnabled = false;
 let studentClass = "";
 let currentView = "home";
 let unsubscribeLeaderboard = null;
 
-// --- CẤU HÌNH CHỤP MÀN HÌNH & GIAN LẬN ---
 let isCheating = false;
-let displayStream = null;
 let isKicked = false;
-
-const CLOUDINARY_CLOUD_NAME = "w7xmgzco"; // ⚠️ ĐIỀN CLOUD NAME CỦA BẠN
-const CLOUDINARY_UPLOAD_PRESET = "hocsinh_cheat";
-
-async function initScreenShare() {
-  try {
-    displayStream = await navigator.mediaDevices.getDisplayMedia({ video: true });
-    
-    // KIỂM TRA XEM HỌC SINH CHỌN "ENTIRE SCREEN" HAY KHÔNG
-    const videoTrack = displayStream.getVideoTracks()[0];
-    const settings = videoTrack.getSettings();
-    const displaySurface = settings.displaySurface; 
-    // "monitor" = Entire Screen, "window" = Window, "browser" = Tab
-
-    if (displaySurface !== "monitor") {
-      displayStream.getTracks().forEach(track => track.stop());
-      displayStream = null;
-      return false; 
-    }
-    return true;
-  } catch (err) { return false; }
-}
-
-async function captureScreenAndUpload() {
-  if (!displayStream || isKicked) return;
-  const videoTrack = displayStream.getVideoTracks()[0];
-  const imageCapture = new ImageCapture(videoTrack);
-  
-  try {
-    const bitmap = await imageCapture.grabFrame();
-    const canvas = document.createElement('canvas');
-    canvas.width = 480; 
-    canvas.height = (480 / bitmap.width) * bitmap.height;
-    canvas.getContext('2d').drawImage(bitmap, 0, 0, canvas.width, canvas.height);
-    
-    canvas.toBlob(async (blob) => {
-      if (!blob) return;
-      const formData = new FormData();
-      formData.append('file', blob);
-      formData.append('upload_preset', CLOUDINARY_UPLOAD_PRESET);
-      
-      try {
-        const res = await fetch(`https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/image/upload`, { method: 'POST', body: formData });
-        const data = await res.json();
-        if (data.secure_url) {
-          await setDoc(doc(db, "active_sessions", window.sessionId), { ownerUid: auth.currentUser.uid, cheatingImageUrl: data.secure_url, lastUpdate: new Date() }, { merge: true });
-        }
-      } catch (e) {}
-    }, 'image/jpeg', 0.6);
-  } catch (err) {}
-}
-
-document.addEventListener("visibilitychange", async () => {
-  if (!window.sessionId || isKicked) return;
-  if (document.visibilityState === "hidden") {
-    isCheating = true;
-    await captureScreenAndUpload(); 
-  } else {
-    isCheating = false;
-  }
-  updateProgress();
-});
 
 // Phiên không được ghi bằng REST khi unload; trạng thái cũ sẽ tự hết hạn ở màn hình giáo viên.
 
@@ -103,7 +40,6 @@ function listenForKick() {
       if (data.kicked === true && !isKicked) {
         isKicked = true;
         clearInterval(tm);
-        if (displayStream) { displayStream.getTracks().forEach(track => track.stop()); displayStream = null; }
         deleteDoc(doc(db, "active_sessions", window.sessionId));
 
         A.innerHTML = `
@@ -220,14 +156,14 @@ async function home() {
       </div>
       <div class="c"><b>🏆 Bảng vàng (Trực tuyến)</b>${lb.length?'<table>'+lb.map((r,k)=>`<tr><td>${k+1}</td><td>${esc(r.name)}</td><td>${r.score} điểm</td><td>${r.correct}/${r.total}</td></tr>`).join('')+'</table>':'<p style="color:var(--mut)">Chưa có ai.</p>'}</div>`;
     
-    $('btnFull').onclick = () => checkInputAndGo(QUIZ_DATA.length);
-    $('btnTen').onclick = () => checkInputAndGo(10);
+    $('btnFull').onclick = () => checkInputAndGo(QUIZ_DATA.length, false);
+    $('btnTen').onclick = () => checkInputAndGo(10, true);
 
 
   });
 }
 
-function checkInputAndGo(n) {
+function checkInputAndGo(n, useFishing = false) {
   const inputName = $('nm').value.trim();
   const inputClass = $('cls').value;
 
@@ -240,33 +176,17 @@ function checkInputAndGo(n) {
   name = `${inputName} (${inputClass})`;
   studentClass = inputClass;
   
-  go(n); 
+  go(n, useFishing); 
 }
 
-async function go(n) {
-  currentView = "quiz";
+async function go(n, useFishing = false) {
   isKicked = false;
-  A.innerHTML = `<div class="c ctr"><h2 style="color:var(--pri)">⏳ Đang kiểm tra màn hình...</h2><p>Vui lòng chọn <b>"Toàn bộ màn hình" (Entire Screen)</b> và bấm Cho phép để tiếp tục.</p></div>`;
-  
-  const screenOK = await initScreenShare();
-  
-  if (!screenOK) {
-    A.innerHTML = `
-      <div class="c ctr" style="border-color:var(--bad); background:#ffebee;">
-        <h2 style="color:var(--bad)">🚫 CHIA SẺ MÀN HÌNH KHÔNG HỢP LỆ</h2>
-        <p>Hệ thống yêu cầu chia sẻ <b>Toàn bộ màn hình (Entire Screen)</b>.</p>
-        <p>Bạn đã hủy hoặc chọn sai (Chọn Tab/Window). Vui lòng thử lại!</p>
-        <button class="b" onclick="location.reload()">🔄 Thử lại (Bấm Entire Screen)</button>
-      </div>`;
-    return;
-  }
-
-  window.sessionId = "s_" + (crypto.randomUUID ? crypto.randomUUID() : Date.now() + "_" + Math.random().toString(36).slice(2));
-  isCheating = false;
+  fishingEnabled = useFishing;
   Q = [...QUIZ_DATA].sort(() => Math.random() - 0.5).slice(0, Math.min(n, QUIZ_DATA.length));
   i = 0; sc = 0; st = 0; ok = 0; wrong = [];
-  
-  listenForKick(); 
+  isCheating = false;
+  window.sessionId = "s_" + (crypto.randomUUID ? crypto.randomUUID() : Date.now() + "_" + Math.random().toString(36).slice(2));
+  listenForKick();
   show();
 }
 
@@ -357,13 +277,63 @@ function ans(v) {
     </div>
     <button class="b" style="margin-top:10px" id="btnNext">${i+1<Q.length?'Câu tiếp theo ➜':'Xem kết quả 🏁'}</button>`;
     
-  $('btnNext').onclick = () => { i++; show(); };
+  $('btnNext').onclick = () => { i++; if (fishingEnabled) fishingRound(); else show(); };
 }
 
+function fishingRound() {
+  clearInterval(tm);
+  const fishTypes = [
+    {name:"Cá rô",emoji:"🐟",points:20,rarity:"Thường"},
+    {name:"Cá chép",emoji:"🐠",points:40,rarity:"Khá hiếm"},
+    {name:"Cá vàng",emoji:"🐡",points:60,rarity:"Hiếm"},
+    {name:"Cá kiếm",emoji:"🦈",points:100,rarity:"Siêu hiếm"},
+    {name:"Cá thần tiên",emoji:"🐬",points:150,rarity:"Huyền thoại"}
+  ];
+  A.innerHTML = '<div class="top"><span>🎣 SĂN CÁ</span><span>⭐ '+sc+' điểm</span><span>'+i+'/'+Q.length+'</span></div>'+
+    '<div class="c" style="padding:12px;background:#e0f2fe;border:2px solid #7dd3fc">'+
+    '<div style="display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap;color:#075985;font-weight:bold"><span>⏱ <b id="fishTime">20</b>s</span><span>Điều khiển: A / D hoặc ← / →</span></div>'+
+    '<canvas id="fishingCanvas" width="720" height="340" aria-label="Màn chơi câu cá" style="display:block;width:100%;max-width:720px;margin:10px auto;border:2px solid #38bdf8;border-radius:14px;background:#7dd3fc;touch-action:pan-y"></canvas>'+
+    '<div style="display:flex;justify-content:center;gap:12px;margin:8px"><button class="b" id="fishLeft" style="background:#0369a1;color:white;min-width:90px">◀ A</button><button class="b" id="fishRight" style="background:#0369a1;color:white;min-width:90px">D ▶</button></div>'+
+    '<p id="fishHint" style="text-align:center;color:#075985;font-weight:bold">Di chuyển móc câu để chạm vào cá đang bơi!</p>'+
+    '<p style="text-align:center;color:#075985;font-size:.9rem">Cá càng hiếm, điểm thưởng càng cao. Bạn có 20 giây!</p></div>';
+  const canvas=$('fishingCanvas'),ctx=canvas.getContext('2d'),W=canvas.width,H=canvas.height;
+  const hook={x:W/2,y:255},swimmers=Array.from({length:8},()=>({x:40+Math.random()*(W-80),y:155+Math.random()*125,speed:(.7+Math.random()*1.5)*(Math.random()<.5?-1:1),size:16+Math.random()*10,phase:Math.random()*6.28,caught:false}));
+  let remaining=20,finished=false,frame=0,raf=0,timer=null;
+  const keys={left:false,right:false},clamp=(v,min,max)=>Math.max(min,Math.min(max,v));
+  function keyDown(e){if(["ArrowLeft","ArrowRight","a","A","d","D"].includes(e.key))e.preventDefault();if(e.key==="ArrowLeft"||e.key==="a"||e.key==="A")keys.left=true;if(e.key==="ArrowRight"||e.key==="d"||e.key==="D")keys.right=true;}
+  function keyUp(e){if(e.key==="ArrowLeft"||e.key==="a"||e.key==="A")keys.left=false;if(e.key==="ArrowRight"||e.key==="d"||e.key==="D")keys.right=false;}
+  function drawFish(f,t){ctx.save();ctx.translate(f.x,f.y+Math.sin(t/18+f.phase)*5);if(f.speed<0)ctx.scale(-1,1);ctx.font=(f.size*1.8)+'px serif';ctx.textAlign="center";ctx.textBaseline="middle";ctx.fillText("🐟",0,0);ctx.restore();}
+  function draw(){
+    ctx.clearRect(0,0,W,H);const sky=ctx.createLinearGradient(0,0,0,H);sky.addColorStop(0,"#bae6fd");sky.addColorStop(.25,"#38bdf8");sky.addColorStop(1,"#075985");ctx.fillStyle=sky;ctx.fillRect(0,0,W,H);
+    ctx.fillStyle="rgba(255,255,255,.35)";for(let n=0;n<7;n++){ctx.beginPath();ctx.arc((n*127+frame*.4)%W,35+(n%3)*18,3,0,7);ctx.fill();}
+    ctx.fillStyle="#d6a66b";ctx.fillRect(0,H-24,W,24);ctx.fillStyle="#166534";ctx.fillRect(0,H-30,W,7);
+    swimmers.forEach(f=>{if(!f.caught)drawFish(f,frame);});
+    ctx.strokeStyle="#78350f";ctx.lineWidth=5;ctx.beginPath();ctx.moveTo(W/2,0);ctx.quadraticCurveTo(hook.x-20,35,hook.x,65);ctx.stroke();
+    ctx.strokeStyle="#f8fafc";ctx.lineWidth=2;ctx.beginPath();ctx.moveTo(hook.x,65);ctx.lineTo(hook.x,hook.y);ctx.stroke();
+    ctx.lineWidth=4;ctx.beginPath();ctx.arc(hook.x+5,hook.y,8,Math.PI*.15,Math.PI*1.25);ctx.stroke();
+    ctx.fillStyle="rgba(255,255,255,.8)";ctx.font="bold 15px sans-serif";ctx.fillText("A / ←",18,24);ctx.fillText("D / →",W-75,24);
+  }
+  function cleanup(){cancelAnimationFrame(raf);window.removeEventListener("keydown",keyDown);window.removeEventListener("keyup",keyUp);if(timer)clearInterval(timer);}
+  function finish(award){
+    if(finished)return;finished=true;cleanup();award=award||{name:"Chưa câu được cá",emoji:"🫧",points:0,rarity:"Hết lượt"};
+    sc+=award.points;
+    $('fishHint').innerHTML='<div style="font-size:3.5rem">'+award.emoji+'</div><b style="font-size:1.2rem;color:#075985">'+award.name+'</b><p>'+award.rarity+' · <b>+'+award.points+' điểm</b></p><p>Tổng điểm: <b>'+sc+'</b></p><button class="b" id="btnContinue">Tiếp tục ➜</button>';
+    updateProgress();$('btnContinue').onclick=()=>{if(i>=Q.length)end();else show();};
+  }
+  function tick(){
+    if(finished)return;frame++;if(keys.left)hook.x-=5;if(keys.right)hook.x+=5;hook.x=clamp(hook.x,28,W-28);
+    swimmers.forEach(f=>{if(f.caught)return;f.x+=f.speed;if(f.x<-30)f.x=W+25;if(f.x>W+30)f.x=-25;if(Math.abs(f.x-hook.x)<25&&Math.abs((f.y+Math.sin(frame/18+f.phase)*5)-hook.y)<27){f.caught=true;finish(fishTypes[Math.floor(Math.random()*fishTypes.length)]);}});
+    draw();raf=requestAnimationFrame(tick);
+  }
+  window.addEventListener("keydown",keyDown);window.addEventListener("keyup",keyUp);
+  $('fishLeft').onpointerdown=()=>keys.left=true;$('fishLeft').onpointerup=$('fishLeft').onpointerleave=()=>keys.left=false;
+  $('fishRight').onpointerdown=()=>keys.right=true;$('fishRight').onpointerup=$('fishRight').onpointerleave=()=>keys.right=false;
+  timer=setInterval(()=>{if(finished){clearInterval(timer);return;}remaining--;if($('fishTime'))$('fishTime').textContent=remaining;if(remaining<=0)finish(null);},1000);
+  draw();raf=requestAnimationFrame(tick);
+}
 async function end() {
   currentView = "result";
   const p = ok/Q.length*100;
-  if (displayStream) { displayStream.getTracks().forEach(track => track.stop()); displayStream = null; }
   const rk = p>=90?['👑','VUA TIẾNG VIỆT']:p>=75?['🛡️','Hiệp sĩ Ngôn từ']:p>=50?['📚','Học giả Chăm chỉ']:['🌱','Tập sự Tiếng Việt'];
   
   if (window.sessionId) {
@@ -382,7 +352,7 @@ async function end() {
     ${wrong.length ? `<div class="c"><b>Các câu cần ôn lại</b>${wrong.map(q=>`<p><span class="chip">${esc(q.c)}</span> ${esc(q.q)}<br>➜ <b>${esc(q.t==='mc'?q.o[q.a-1]:q.a)}</b> — ${esc(q.e||'')}</p>`).join('')}</div>` : ''}`;
     
   $('btnHome').onclick = home;
-  $('btnReplay').onclick = () => go(Q.length);
+  $('btnReplay').onclick = () => go(Q.length, fishingEnabled);
 }
 
 signInAnonymously(auth)
