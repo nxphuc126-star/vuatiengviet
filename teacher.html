@@ -32,10 +32,6 @@
   .error-msg { color: #b91c1c; font-size: 0.9rem; margin-top: 10px; display: none; }
   
   #main-content { display: none; }
-  
-  .upload-section { background: #fff; border: 2px dashed #c2410c; border-radius: 16px; padding: 20px; text-align: center; max-width: 1100px; margin: 0 auto 20px auto; }
-  .upload-section h3 { margin-top: 0; color: #c2410c; }
-  .file-status { margin-top: 10px; color: #15803d; font-weight: bold; display: none; }
 
   .btn-del { background: #ef4444; color: white; border: none; border-radius: 4px; padding: 2px 6px; font-size: 0.75rem; cursor: pointer; margin-left: 8px; }
   .btn-warn { background: #eab308; color: white; border: none; border-radius: 6px; padding: 4px 8px; font-size: 0.8rem; cursor: pointer; margin-right: 4px; }
@@ -56,15 +52,7 @@
 
 <div id="main-content">
   <h1>👩‍🏫 Quản Lý Lớp Học</h1>
-  <p class="subtitle">Cập nhật real-time · Theo dõi tiến độ và giao bài tập</p>
-
-  <div class="upload-section">
-    <h3>📁 Giao Bài Tập Về Nhà (BTVN)</h3>
-    <p style="font-size:0.9rem; color:#7a6a58">Tải lên file Word hoặc Ảnh đề bài (Không hỗ trợ PDF).</p>
-    <input type="file" id="fileUpload" style="margin-bottom:10px; padding:10px; border:1px solid #ccc; border-radius:8px;">
-    <button class="b" style="background:#c2410c; color:#fff; border:none; padding:10px 20px; border-radius:8px; cursor:pointer; font-weight:bold;" onclick="uploadHomework()">Tải Lên BTVN</button>
-    <p id="upload-status" class="file-status">✅ Đã tải lên thành công! Học sinh có thể tải về ngay bây giờ.</p>
-  </div>
+  <p class="subtitle">Cập nhật real-time · Theo dõi tiến độ học sinh</p>
 
   <div class="grid">
     <div class="box">
@@ -80,7 +68,7 @@
 
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-import { getFirestore, collection, onSnapshot, query, orderBy, limit, doc, deleteDoc, updateDoc, setDoc, getDoc, getDocs, where }
+import { getFirestore, collection, onSnapshot, query, orderBy, limit, doc, deleteDoc, updateDoc, getDocs }
   from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
   
 import { REAL_HASH_USER, REAL_HASH_PASS } from './auth.js';
@@ -124,53 +112,6 @@ window.checkLogin = async function() {
 document.getElementById('password').addEventListener('keypress', function(e) {
   if (e.key === 'Enter') window.checkLogin();
 });
-
-// UPLOAD FILE QUA CLOUDINARY (BẢN CHUẨN)
-window.uploadHomework = async function() {
-  const fileInput = document.getElementById('fileUpload');
-  const file = fileInput.files[0];
-  
-  if (!file) { alert("Vui lòng chọn một file!"); return; }
-  if (file.name.toLowerCase().endsWith('.pdf') || file.type === 'application/pdf') {
-    alert("⚠️ Cô giáo nên upload file Word hoặc Ảnh thay vì PDF nhé!");
-    fileInput.value = ''; return; 
-  }
-
-  try {
-    document.getElementById('upload-status').style.display = 'block';
-    document.getElementById('upload-status').textContent = "⏳ Đang tải lên Cloudinary...";
-    
-    const CLOUDINARY_CLOUD_NAME = "w7xmzgco"; // ⚠️ Đảm bảo đúng Cloud Name
-    const CLOUDINARY_UPLOAD_PRESET = "btvn_files"; // ⚠️ Đảm bảo đúng Preset (Unsigned)
-
-    const formData = new FormData();
-    formData.append('file', file);
-    formData.append('upload_preset', CLOUDINARY_UPLOAD_PRESET);
-
-    // Sử dụng /auto/upload để Cloudinary tự nhận diện file Word
-    const res = await fetch(`https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/auto/upload`, {
-      method: 'POST', body: formData
-    });
-    
-    const data = await res.json();
-    
-    // Bắt lỗi chi tiết
-    if (data.error) {
-        throw new Error(data.error.message); 
-    }
-    if (!data.secure_url) throw new Error("Không lấy được link file từ Cloudinary");
-
-    await setDoc(doc(db, "settings", "homework"), {
-      fileName: file.name, url: data.secure_url, timestamp: new Date()
-    });
-
-    document.getElementById('upload-status').textContent = "✅ Đã tải lên thành công!";
-    fileInput.value = ''; 
-  } catch (e) {
-    alert("Lỗi upload file: " + e.message);
-    document.getElementById('upload-status').style.display = 'none';
-  }
-};
 
 window.kickStudent = async function(sessionId) {
   if (confirm("Bạn có chắc chắn muốn đuổi học sinh này ra khỏi phòng thi?")) {
