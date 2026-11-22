@@ -280,36 +280,55 @@ function ans(v) {
 
 function fishingRound() {
   clearInterval(tm);
-  const fish = [
-    {name:"Cá rô", emoji:"🐟", points:20, rarity:"Thường"},
-    {name:"Cá chép", emoji:"🐠", points:40, rarity:"Khá hiếm"},
-    {name:"Cá vàng", emoji:"🐡", points:60, rarity:"Hiếm"},
-    {name:"Cá kiếm", emoji:"🦈", points:100, rarity:"Siêu hiếm"},
-    {name:"Cá thần tiên", emoji:"🐬", points:150, rarity:"Huyền thoại"}
+  const fishTypes = [
+    {name:"Cá rô",emoji:"🐟",points:20,rarity:"Thường"},
+    {name:"Cá chép",emoji:"🐠",points:40,rarity:"Khá hiếm"},
+    {name:"Cá vàng",emoji:"🐡",points:60,rarity:"Hiếm"},
+    {name:"Cá kiếm",emoji:"🦈",points:100,rarity:"Siêu hiếm"},
+    {name:"Cá thần tiên",emoji:"🐬",points:150,rarity:"Huyền thoại"}
   ];
-  A.innerHTML = `
-    <div class="top"><span>🎣 Vòng câu cá</span><span>⭐ ${sc} điểm</span><span>${i}/${Q.length}</span></div>
-    <div class="c ctr" style="background:linear-gradient(180deg,#dff6ff,#b9e7f5);color:#123b55;border:2px solid #75c8e8;min-height:300px;display:flex;flex-direction:column;align-items:center;justify-content:center">
-      <div style="font-size:3rem">🌊 🎣 🌊</div>
-      <h2 style="color:#075985">Thả cần câu cá!</h2>
-      <p>Mỗi câu trả lời xong, bạn được một lượt câu cá.</p>
-      <button class="b" id="btnFish" style="background:#0284c7;color:white;font-size:1.1rem;padding:14px 28px">🎣 CÂU CÁ</button>
-      <p id="fishHint">Nhấn nút để khám phá phần thưởng.</p>
-    </div>`;
-  $('btnFish').onclick = () => {
-    const caught = fish[Math.floor(Math.random() * fish.length)];
-    sc += caught.points;
-    $('btnFish').disabled = true;
-    $('btnFish').textContent = 'Đã câu được cá!';
-    $('fishHint').innerHTML = `<div style="font-size:4rem">${caught.emoji}</div><h2 style="color:#075985">${caught.name}</h2><b>${caught.rarity} · +${caught.points} điểm</b><p>Tổng điểm: <b>${sc}</b></p><button class="b" id="btnContinue">Câu tiếp theo ➜</button>`;
-    updateProgress();
-    $('btnContinue').onclick = () => {
-      if (i >= Q.length) end();
-      else show();
-    };
-  };
+  A.innerHTML = '<div class="top"><span>🎣 SĂN CÁ</span><span>⭐ '+sc+' điểm</span><span>'+i+'/'+Q.length+'</span></div>'+
+    '<div class="c" style="padding:12px;background:#e0f2fe;border:2px solid #7dd3fc">'+
+    '<div style="display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap;color:#075985;font-weight:bold"><span>⏱ <b id="fishTime">20</b>s</span><span>Điều khiển: A / D hoặc ← / →</span></div>'+
+    '<canvas id="fishingCanvas" width="720" height="340" aria-label="Màn chơi câu cá" style="display:block;width:100%;max-width:720px;margin:10px auto;border:2px solid #38bdf8;border-radius:14px;background:#7dd3fc;touch-action:pan-y"></canvas>'+
+    '<div style="display:flex;justify-content:center;gap:12px;margin:8px"><button class="b" id="fishLeft" style="background:#0369a1;color:white;min-width:90px">◀ A</button><button class="b" id="fishRight" style="background:#0369a1;color:white;min-width:90px">D ▶</button></div>'+
+    '<p id="fishHint" style="text-align:center;color:#075985;font-weight:bold">Di chuyển móc câu để chạm vào cá đang bơi!</p>'+
+    '<p style="text-align:center;color:#075985;font-size:.9rem">Cá càng hiếm, điểm thưởng càng cao. Bạn có 20 giây!</p></div>';
+  const canvas=$('fishingCanvas'),ctx=canvas.getContext('2d'),W=canvas.width,H=canvas.height;
+  const hook={x:W/2,y:255},swimmers=Array.from({length:8},()=>({x:40+Math.random()*(W-80),y:155+Math.random()*125,speed:(.7+Math.random()*1.5)*(Math.random()<.5?-1:1),size:16+Math.random()*10,phase:Math.random()*6.28,caught:false}));
+  let remaining=20,finished=false,frame=0,raf=0,timer=null;
+  const keys={left:false,right:false},clamp=(v,min,max)=>Math.max(min,Math.min(max,v));
+  function keyDown(e){if(["ArrowLeft","ArrowRight","a","A","d","D"].includes(e.key))e.preventDefault();if(e.key==="ArrowLeft"||e.key==="a"||e.key==="A")keys.left=true;if(e.key==="ArrowRight"||e.key==="d"||e.key==="D")keys.right=true;}
+  function keyUp(e){if(e.key==="ArrowLeft"||e.key==="a"||e.key==="A")keys.left=false;if(e.key==="ArrowRight"||e.key==="d"||e.key==="D")keys.right=false;}
+  function drawFish(f,t){ctx.save();ctx.translate(f.x,f.y+Math.sin(t/18+f.phase)*5);if(f.speed<0)ctx.scale(-1,1);ctx.font=(f.size*1.8)+'px serif';ctx.textAlign="center";ctx.textBaseline="middle";ctx.fillText("🐟",0,0);ctx.restore();}
+  function draw(){
+    ctx.clearRect(0,0,W,H);const sky=ctx.createLinearGradient(0,0,0,H);sky.addColorStop(0,"#bae6fd");sky.addColorStop(.25,"#38bdf8");sky.addColorStop(1,"#075985");ctx.fillStyle=sky;ctx.fillRect(0,0,W,H);
+    ctx.fillStyle="rgba(255,255,255,.35)";for(let n=0;n<7;n++){ctx.beginPath();ctx.arc((n*127+frame*.4)%W,35+(n%3)*18,3,0,7);ctx.fill();}
+    ctx.fillStyle="#d6a66b";ctx.fillRect(0,H-24,W,24);ctx.fillStyle="#166534";ctx.fillRect(0,H-30,W,7);
+    swimmers.forEach(f=>{if(!f.caught)drawFish(f,frame);});
+    ctx.strokeStyle="#78350f";ctx.lineWidth=5;ctx.beginPath();ctx.moveTo(W/2,0);ctx.quadraticCurveTo(hook.x-20,35,hook.x,65);ctx.stroke();
+    ctx.strokeStyle="#f8fafc";ctx.lineWidth=2;ctx.beginPath();ctx.moveTo(hook.x,65);ctx.lineTo(hook.x,hook.y);ctx.stroke();
+    ctx.lineWidth=4;ctx.beginPath();ctx.arc(hook.x+5,hook.y,8,Math.PI*.15,Math.PI*1.25);ctx.stroke();
+    ctx.fillStyle="rgba(255,255,255,.8)";ctx.font="bold 15px sans-serif";ctx.fillText("A / ←",18,24);ctx.fillText("D / →",W-75,24);
+  }
+  function cleanup(){cancelAnimationFrame(raf);window.removeEventListener("keydown",keyDown);window.removeEventListener("keyup",keyUp);if(timer)clearInterval(timer);}
+  function finish(award){
+    if(finished)return;finished=true;cleanup();award=award||{name:"Chưa câu được cá",emoji:"🫧",points:0,rarity:"Hết lượt"};
+    sc+=award.points;
+    $('fishHint').innerHTML='<div style="font-size:3.5rem">'+award.emoji+'</div><b style="font-size:1.2rem;color:#075985">'+award.name+'</b><p>'+award.rarity+' · <b>+'+award.points+' điểm</b></p><p>Tổng điểm: <b>'+sc+'</b></p><button class="b" id="btnContinue">Tiếp tục ➜</button>';
+    updateProgress();$('btnContinue').onclick=()=>{if(i>=Q.length)end();else show();};
+  }
+  function tick(){
+    if(finished)return;frame++;if(keys.left)hook.x-=5;if(keys.right)hook.x+=5;hook.x=clamp(hook.x,28,W-28);
+    swimmers.forEach(f=>{if(f.caught)return;f.x+=f.speed;if(f.x<-30)f.x=W+25;if(f.x>W+30)f.x=-25;if(Math.abs(f.x-hook.x)<25&&Math.abs((f.y+Math.sin(frame/18+f.phase)*5)-hook.y)<27){f.caught=true;finish(fishTypes[Math.floor(Math.random()*fishTypes.length)]);}});
+    draw();raf=requestAnimationFrame(tick);
+  }
+  window.addEventListener("keydown",keyDown);window.addEventListener("keyup",keyUp);
+  $('fishLeft').onpointerdown=()=>keys.left=true;$('fishLeft').onpointerup=$('fishLeft').onpointerleave=()=>keys.left=false;
+  $('fishRight').onpointerdown=()=>keys.right=true;$('fishRight').onpointerup=$('fishRight').onpointerleave=()=>keys.right=false;
+  timer=setInterval(()=>{if(finished){clearInterval(timer);return;}remaining--;if($('fishTime'))$('fishTime').textContent=remaining;if(remaining<=0)finish(null);},1000);
+  draw();raf=requestAnimationFrame(tick);
 }
-
 async function end() {
   currentView = "result";
   const p = ok/Q.length*100;
