@@ -118,3 +118,28 @@ td { padding: 6px; border-bottom: 1px solid var(--line); }
 .ed { border-left: 6px solid var(--pri); }
 label { font-size: .85rem; color: var(--mut); display: block; margin-top: 8px; }
 .hide { display: none; }
+
+
+/* Mobile layout improvements */
+@media (max-width: 600px) {
+  body { font-size: 16px; }
+  .w {
+    width: 100%;
+    max-width: 100%;
+    padding: 12px;
+    padding-left: max(12px, env(safe-area-inset-left));
+    padding-right: max(12px, env(safe-area-inset-right));
+  }
+  h1 { font-size: clamp(1.65rem, 8vw, 2.1rem); }
+  .c { padding: 14px; border-radius: 14px; }
+  .top { gap: 8px; flex-wrap: wrap; font-size: .82rem; }
+  .b, .o, button {
+    min-height: 44px;
+    touch-action: manipulation;
+  }
+  .b { padding: 11px 14px; }
+  .words .o { min-height: 44px; }
+  table { display: block; overflow-x: auto; -webkit-overflow-scrolling: touch; }
+  td { white-space: nowrap; }
+  input, select, textarea { min-height: 44px; font-size: 16px; }
+}
