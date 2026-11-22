@@ -294,7 +294,7 @@ async function go(n) {
     return;
   }
 
-  window.sessionId = "s_" + Date.now();
+  window.sessionId = "s_" + (crypto.randomUUID ? crypto.randomUUID() : Date.now() + "_" + Math.random().toString(36).slice(2));
   isCheating = false;
   Q = [...QUIZ_DATA].sort(() => Math.random() - 0.5).slice(0, Math.min(n, QUIZ_DATA.length));
   i = 0; sc = 0; st = 0; ok = 0; wrong = [];
