@@ -250,7 +250,7 @@ async function saveScore() {
   } catch (e) {}
 }
 
-async async function home() {
+async function home() {
   clearInterval(tm);
   let hwHtml = '';
 
